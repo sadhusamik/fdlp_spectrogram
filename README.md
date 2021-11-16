@@ -11,7 +11,7 @@ The implementation allows fast batch computation of FDLP-spectrogram that can ev
 To compute FDLP spectrogram
 
 ```python
-
+from src.fdlp import fdlp
 fdlp=fdlp()
 # speech (batch x signal length) : padded speech signals formed into a batch
 # lens (batch) : lengths of each padded speech siganl in the batch
