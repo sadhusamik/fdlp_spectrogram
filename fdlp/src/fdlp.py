@@ -320,6 +320,8 @@ class fdlp:
 
         if ilens is not None:
             olens = np.round(ilens * self.frate / self.srate)
+        else:
+            olens = None
 
         return modspec, olens
 

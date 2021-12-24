@@ -19,6 +19,7 @@ from fdlp.src.fdlp import fdlp
 fdlp = fdlp()
 # speech (batch x signal length) : padded speech signals formed into a batch
 # lens (batch) : lengths of each padded speech siganl in the batch
+# set lens=None if you are computing features one utterance at a time and not as a batch
 feats, olens = fdlp.extract_feats(speech, lens)
 
 ```
