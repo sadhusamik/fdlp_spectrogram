@@ -68,7 +68,7 @@ The fdlp class takes the following important parameters for M-vector computation
  overlap_fraction: float = 0.25,  # Overlap fraction in Overlap-Add
  srate: int = 16000    # Sample rate of the speech signal
 ```
-Results with these features for Kaldi TDNN models can be found in **Modulation Vectors as Robust Feature Representation for ASR in Domain Mismatched Conditions** (https://www.isca-speech.org/archive_v0/Interspeech_2019/pdfs/2723.pdf)
+Results with these features for Kaldi TDNN models for REVERB data set can be found in **Modulation Vectors as Robust Feature Representation for ASR in Domain Mismatched Conditions** (https://www.isca-speech.org/archive_v0/Interspeech_2019/pdfs/2723.pdf)
 
 
 
