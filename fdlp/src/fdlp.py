@@ -20,6 +20,7 @@ class fdlp:
                  lifter_file: str = None,
                  lfr: int = 33,  # only used when return_mvector = True
                  return_mvector: bool = False,
+                 no_window: bool = False,
                  srate: int = 16000):
         assert check_argument_types()
 
@@ -34,6 +35,7 @@ class fdlp:
         self.return_mvector = return_mvector
         self.srate = srate
         self.overlap_fraction = 1 - overlap_fraction
+        self.no_window = no_window
         if return_mvector:
             self.lfr = lfr
         else:
@@ -189,7 +191,7 @@ class fdlp:
             lpc_cep[:, :, :, n] = acc + lpc_coeff[:, :, :, n]
         return lpc_cep
 
-    def get_frames(self, signal):
+    def get_frames(self, signal, no_window=False):
         """Divide speech signal into frames.
 
                 Args:
@@ -216,7 +218,10 @@ class fdlp:
         idx = sp_b
         frames = []
         while (idx + sp_f) < signal_length:
-            frames.append(signal[:, np.newaxis, idx - sp_b:idx + sp_f + 1] * win)
+            if no_window:
+                frames.append(signal[:, np.newaxis, idx - sp_b:idx + sp_f + 1])
+            else:
+                frames.append(signal[:, np.newaxis, idx - sp_b:idx + sp_f + 1] * win)
             idx += frate_samples
 
         frames = np.concatenate(frames, axis=1)
@@ -277,7 +282,7 @@ class fdlp:
         num_batch = input.shape[0]
 
         # First divide the signal into frames
-        frames = self.get_frames(input)
+        frames = self.get_frames(input, no_window=self.no_window)
         num_frames = frames.shape[1]
 
         # Compute DCT (olens remains the same)
