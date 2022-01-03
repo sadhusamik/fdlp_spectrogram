@@ -219,6 +219,7 @@ class fdlp:
         frames = []
         while (idx + sp_f) < signal_length:
             if no_window:
+                print('Not using any windows')
                 frames.append(signal[:, np.newaxis, idx - sp_b:idx + sp_f + 1])
             else:
                 frames.append(signal[:, np.newaxis, idx - sp_b:idx + sp_f + 1] * win)
