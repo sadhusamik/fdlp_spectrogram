@@ -20,6 +20,7 @@ class fdlp:
                  lifter_file: str = None,
                  lfr: int = 33,  # only used when return_mvector = True
                  return_mvector: bool = False,
+                 complex_mvectors: bool = False,
                  no_window: bool = False,
                  srate: int = 16000):
         assert check_argument_types()
@@ -36,6 +37,7 @@ class fdlp:
         self.srate = srate
         self.overlap_fraction = 1 - overlap_fraction
         self.no_window = no_window
+        self.complex_mvectors = complex_mvectors
         if return_mvector:
             self.lfr = lfr
         else:
@@ -51,15 +53,21 @@ class fdlp:
         self.cut = int(np.round(self.fduration * self.frate))
         self.cut_half = int(np.round(self.fduration * self.frate / 2))
         self.cut_overlap = int(np.round(self.fduration * self.frate * self.overlap_fraction))
-        self.fbank = self.initialize_filterbank(self.n_filters, int(2 * self.fduration * self.srate), self.srate,
-                                                om_w=1,
-                                                alp=1, fixed=1, bet=2.5, warp_fact=1)
+        if self.complex_mvectors:
+            self.fbank = self.initialize_filterbank(self.n_filters, int(self.fduration * self.srate), self.srate,
+                                                    om_w=1,
+                                                    alp=1, fixed=1, bet=2.5, warp_fact=1, make_symmetric=True)
+        else:
+            self.fbank = self.initialize_filterbank(self.n_filters, int(2 * self.fduration * self.srate), self.srate,
+                                                    om_w=1,
+                                                    alp=1, fixed=1, bet=2.5, warp_fact=1)
         if lifter_file is not None:
             self.lifter = pkl.load(open(lifter_file, 'rb'))
         else:
             self.lifter = np.ones(coeff_num)
 
-    def initialize_filterbank(self, nfilters, nfft, srate, om_w=1, alp=1, fixed=1, bet=2.5, warp_fact=1):
+    def initialize_filterbank(self, nfilters, nfft, srate, om_w=1, alp=1, fixed=1, bet=2.5, warp_fact=1,
+                              make_symmetric=False):
         f_max = srate / 2
         warped_max = self.__warp_func_bark(f_max, warp_fact)
         fwarped_cf = np.linspace(0, warped_max, nfilters)
@@ -80,8 +88,10 @@ class fdlp:
                     filts[i, j] = 1
                 else:
                     filts[i, j] = np.power(10, -bet * (fw - fc - om_w / 2))
-
-        return filts
+        if make_symmetric:
+            return np.concatenate((filts[:, :-1], np.flip(filts, axis=1)), axis=1)
+        else:
+            return filts
 
     def __warp_func_bark(self, x, warp_fact=1):
         return 6 * np.arcsinh((x / warp_fact) / 600)
@@ -92,10 +102,47 @@ class fdlp:
         :param input: Array (Batch x time_frames x dimension)
         :return: Array (Autocorrelation coefficients)
         """
-        r = np.real(np.fft.ifft(np.fft.fft(input) * np.conj(np.fft.fft(input))))
+        r = np.fft.ifft(np.fft.fft(input) * np.conj(np.fft.fft(input)))
         return r
 
     def levinson_durbin(self, R, p):
+        """
+        Levinson Durbin recursion to compute LPC coefficients
+
+        :param R: autocorrelation coefficients - Tensor (batch x num_frames x n_filters  x autocorr)
+        :param p: lpc model order - int
+        :return: Tensor (batch x n_filters x lpc_coeff), Tensor (batch x num_frames x n_filters)
+
+        """
+        num_batch = R.shape[0]
+        num_frames = R.shape[1]
+        n_filters = R.shape[2]
+
+        k = np.zeros((num_batch, num_frames, n_filters, p), dtype=R.dtype)
+        alphs = np.zeros((num_batch, num_frames, n_filters, p, p), dtype=R.dtype)
+        errs = np.zeros((num_batch, num_frames, n_filters, p + 1), dtype=R.dtype)
+        errs[:, :, :, 0] = R[:, :, :, 0]
+        for i in range(1, p + 1):
+            if i == 1:
+                k[:, :, :, i - 1] = R[:, :, :, i] / errs[:, :, :, i - 1]
+            else:
+                k[:, :, :, i - 1] = (R[:, :, :, i] - np.sum(
+                    alphs[:, :, :, 0:i - 1, i - 2] * np.flip(R[:, :, :, 1:i], [3]), axis=3)) / errs[:, :, :, i - 1]
+            alphs[:, :, :, i - 1, i - 1] = k[:, :, :, i - 1]
+            if i > 1:
+                for j in range(1, i):
+                    alphs[:, :, :, j - 1, i - 1] = alphs[:, :, :, j - 1, i - 2] - k[:, :, :, i - 1] * np.conj(
+                        alphs[:, :, :,
+                        i - j - 1,
+                        i - 2])
+            errs[:, :, :, i] = (1 - np.abs(k[:, :, :, i - 1]) ** 2) * errs[:, :, :, i - 1]
+
+        return np.concatenate(
+            (np.ones((num_batch, num_frames, n_filters, 1), dtype=R.dtype), -alphs[:, :, :, :, p - 1]), axis=3), errs[:,
+                                                                                                                 :, :,
+                                                                                                                 -1]
+
+    def levinson_durbin2(self, R, p):
         """
         Levinson Durbin recursion to compute LPC coefficients
 
@@ -149,8 +196,12 @@ class fdlp:
         :param signal: Array (batch x num_frames x n_filters x frame_dim)
         :return: Array (batch x num_frames x n_filters x int(self.fduration * self.frate))
         """
-        signal = np.fft.fft(signal, 2 * int(
-            self.fduration * self.frate))  # (batch x num_frames x n_filters x int(self.fduration * self.frate))
+        if self.complex_mvectors:
+            signal = np.fft.fft(signal, 1 * int(
+                self.fduration * self.frate))  # (batch x num_frames x n_filters x int(self.fduration * self.frate))
+        else:
+            signal = np.fft.fft(signal, 2 * int(
+                self.fduration * self.frate))  # (batch x num_frames x n_filters x int(self.fduration * self.frate))
         return np.abs(np.exp(signal))
 
     def mask_n_lifter(self, signal):
@@ -176,7 +227,7 @@ class fdlp:
         num_frames = lpc_coeff.shape[1]
         n_filters = lpc_coeff.shape[2]
         lpc_coeff[:, :, :, 1:] = -lpc_coeff[:, :, :, 1:]
-        lpc_cep = np.zeros((num_batch, num_frames, n_filters, lim))
+        lpc_cep = np.zeros((num_batch, num_frames, n_filters, lim), dtype=lpc_coeff.dtype)
         lpc_cep[:, :, :, 0] = np.log(np.sqrt(gain))
         lpc_cep[:, :, :, 1] = lpc_coeff[:, :, :, 1]
         if lpc_coeff.shape[3] < lim:
@@ -285,8 +336,11 @@ class fdlp:
         frames = self.get_frames(input, no_window=self.no_window)
         num_frames = frames.shape[1]
 
-        # Compute DCT (olens remains the same)
-        frames = freqAnalysis.dct(frames) / np.sqrt(2 * int(self.srate * self.fduration))
+        # Compute DCT/FFT (olens remains the same)
+        if self.complex_mvectors:
+            frames = np.fft.ifft(frames) * frames.shape[1]  # [:, :, 0:int(frames.shape[2]/2)]
+        else:
+            frames = freqAnalysis.dct(frames) / np.sqrt(2 * int(self.srate * self.fduration))
 
         fbank = self.fbank
 
@@ -299,6 +353,8 @@ class fdlp:
         modspec = frames
 
         if self.return_mvector:
+            if self.complex_mvectors:
+                modspec = np.abs(modspec) # Return only magnitude spectrum
             if self.lfr != self.frate:
                 # We have to interpolate using splines features to frame rate
                 modspec = modspec.reshape(
@@ -312,7 +368,8 @@ class fdlp:
                 modspec = modspec.transpose((0, 2, 1))  # batch  x num_frames_interpolated x n_filters * num_modspec
 
         else:
-
+            #if self.complex_mvectors:
+                #modspec = modspec[:, :, :, ::2]
             modspec = self.mask_n_lifter(modspec)  # (batch x num_frames x n_filters x num_modspec)
             modspec = self.modspec_2_fdlpresponse(
                 modspec)  # (batch x num_frames x n_filters x int(self.fduration * self.frate))
