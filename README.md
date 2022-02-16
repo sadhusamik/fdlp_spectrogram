@@ -15,8 +15,8 @@ The implementation allows fast batch computation of FDLP-spectrogram that can ev
 To compute FDLP spectrogram
 
 ```python
-from fdlp.src.fdlp import fdlp
-fdlp = fdlp()
+from fdlp import FDLP
+fdlp = FDLP()
 # speech (batch x signal length) : padded speech signals formed into a batch
 # lens (batch) : lengths of each padded speech siganl in the batch
 # set lens=None if you are computing features one utterance at a time and not as a batch
@@ -48,8 +48,8 @@ The performance of an e2e ASR with these features can be found in https://arxiv.
 ## Modulation vector (M-vector)
 
 ```python
-from fdlp.src.fdlp import fdlp
-fdlp = fdlp(lfr=10, return_mvector=True)
+from fdlp import FDLP
+fdlp = FDLP(lfr=10, return_mvector=True)
 # speech (batch x signal length) : padded speech signals formed into a batch
 # lens (batch) : lengths of each padded speech siganl in the batch
 feats, olens = fdlp.extract_feats(speech, lens)
