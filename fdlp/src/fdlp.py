@@ -22,6 +22,7 @@ class fdlp:
                  return_mvector: bool = False,
                  complex_mvectors: bool = False,
                  no_window: bool = False,
+                 normalize_uttwise_variance: bool = False,
                  srate: int = 16000):
         assert check_argument_types()
 
@@ -65,6 +66,7 @@ class fdlp:
             self.lifter = pkl.load(open(lifter_file, 'rb'))
         else:
             self.lifter = np.ones(coeff_num)
+        self.normalize_uttwise_variance = normalize_uttwise_variance
 
     def initialize_filterbank(self, nfilters, nfft, srate, om_w=1, alp=1, fixed=1, bet=2.5, warp_fact=1,
                               make_symmetric=False):
@@ -136,42 +138,6 @@ class fdlp:
                         i - j - 1,
                         i - 2])
             errs[:, :, :, i] = (1 - np.abs(k[:, :, :, i - 1]) ** 2) * errs[:, :, :, i - 1]
-
-        return np.concatenate(
-            (np.ones((num_batch, num_frames, n_filters, 1), dtype=R.dtype), -alphs[:, :, :, :, p - 1]), axis=3), errs[:,
-                                                                                                                 :, :,
-                                                                                                                 -1]
-
-    def levinson_durbin2(self, R, p):
-        """
-        Levinson Durbin recursion to compute LPC coefficients
-
-        :param R: autocorrelation coefficients - Tensor (batch x num_frames x n_filters  x autocorr)
-        :param p: lpc model order - int
-        :return: Tensor (batch x n_filters x lpc_coeff), Tensor (batch x num_frames x n_filters)
-
-        """
-        num_batch = R.shape[0]
-        num_frames = R.shape[1]
-        n_filters = R.shape[2]
-
-        k = np.zeros((num_batch, num_frames, n_filters, p), dtype=R.dtype)
-        alphs = np.zeros((num_batch, num_frames, n_filters, p, p), dtype=R.dtype)
-        errs = np.zeros((num_batch, num_frames, n_filters, p + 1), dtype=R.dtype)
-        errs[:, :, :, 0] = R[:, :, :, 0]
-        for i in range(1, p + 1):
-            if i == 1:
-                k[:, :, :, i - 1] = R[:, :, :, i] / errs[:, :, :, i - 1]
-            else:
-                k[:, :, :, i - 1] = (R[:, :, :, i] - np.sum(
-                    alphs[:, :, :, 0:i - 1, i - 2] * np.flip(R[:, :, :, 1:i], [3]), axis=3)) / errs[:, :, :, i - 1]
-            alphs[:, :, :, i - 1, i - 1] = k[:, :, :, i - 1]
-            if i > 1:
-                for j in range(1, i):
-                    alphs[:, :, :, j - 1, i - 1] = alphs[:, :, :, j - 1, i - 2] - k[:, :, :, i - 1] * alphs[:, :, :,
-                                                                                                      i - j - 1,
-                                                                                                      i - 2]
-            errs[:, :, :, i] = (1 - k[:, :, :, i - 1] ** 2) * errs[:, :, :, i - 1]
 
         return np.concatenate(
             (np.ones((num_batch, num_frames, n_filters, 1), dtype=R.dtype), -alphs[:, :, :, :, p - 1]), axis=3), errs[:,
@@ -354,7 +320,7 @@ class fdlp:
 
         if self.return_mvector:
             if self.complex_mvectors:
-                modspec = np.abs(modspec) # Return only magnitude spectrum
+                modspec = np.abs(modspec)  # Return only magnitude spectrum
             if self.lfr != self.frate:
                 # We have to interpolate using splines features to frame rate
                 modspec = modspec.reshape(
@@ -368,8 +334,8 @@ class fdlp:
                 modspec = modspec.transpose((0, 2, 1))  # batch  x num_frames_interpolated x n_filters * num_modspec
 
         else:
-            #if self.complex_mvectors:
-                #modspec = modspec[:, :, :, ::2]
+            # if self.complex_mvectors:
+            # modspec = modspec[:, :, :, ::2]
             modspec = self.mask_n_lifter(modspec)  # (batch x num_frames x n_filters x num_modspec)
             modspec = self.modspec_2_fdlpresponse(
                 modspec)  # (batch x num_frames x n_filters x int(self.fduration * self.frate))
@@ -400,12 +366,16 @@ class fdlp:
 
         # Check if data is multichannel or single-channel
         bs = input.shape[0]  # batch size
+        nsamples = input.shape[1]
         if len(input.shape) == 3:
             multi_channel = True
             # input: (Batch, Nsample, Channels) -> (Batch * Channels, Nsample)
             input = input.transpose((0, 2, 1)).reshape((-1, input.shape[1]))
         else:
             multi_channel = False
+
+        if self.normalize_uttwise_variance and not multi_channel:
+            input /= np.tile(np.var(input, axis=1), (nsamples, 1)).T
 
         # Compute FDLP spectrogram
         output, olens = self.compute_spectrogram(input, ilens)
