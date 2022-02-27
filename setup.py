@@ -12,8 +12,8 @@ project_root = Path(__file__).parent
 setup(
     name="fdlp_spectrogram",
     version=f"{MAJOR_VERSION}.{MINOR_VERSION}.{PATCH_VERSION}",
-    author="Samik Sadhu",
-    author_email="samiksadhu@jhu.edu",
+    author="Samik Sadhu, Martin Kocour",
+    author_email="samiksadhu@jhu.edu, ikocour@fit.vutbr.cz",
     description="Modulation Features for Automatic Speech Recognition",
     long_description=(project_root / "README.md").read_text(encoding="utf-8"),
     long_description_content_type="text/markdown",
