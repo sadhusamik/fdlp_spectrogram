@@ -1,5 +1,3 @@
-import sys
-
 import numpy as np
 from random import randrange
 from typeguard import check_argument_types
@@ -9,27 +7,26 @@ from scipy.interpolate import interp1d
 
 
 class FDLP:
-    def __init__(
-        self,
-        n_filters: int = 80,
-        coeff_num: int = 100,
-        coeff_range: str = "1,100",
-        order: int = 150,
-        fduration: float = 1.5,
-        frate: int = 100,
-        overlap_fraction: float = 0.25,
-        lifter_file: str = None,
-        lfr: int = 33,  # only used when return_mvector = True
-        return_mvector: bool = False,
-        complex_mvectors: bool = False,
-        no_window: bool = False,
-        srate: int = 16000,
-    ):
+    def __init__(self,
+                 n_filters: int = 80,
+                 coeff_num: int = 100,
+                 coeff_range: str = '1,100',
+                 order: int = 150,
+                 fduration: float = 1.5,
+                 frate: int = 100,
+                 overlap_fraction: float = 0.25,
+                 lifter_file: str = None,
+                 lfr: int = 33,  # only used when return_mvector = True
+                 return_mvector: bool = False,
+                 complex_mvectors: bool = False,
+                 no_window: bool = False,
+                 normalize_uttwise_variance: bool = False,
+                 srate: int = 16000):
         assert check_argument_types()
 
         self.n_filters = n_filters
         self.coeff_num = coeff_num
-        coeff_range = coeff_range.split(",")
+        coeff_range = coeff_range.split(',')
         self.lowpass = int(coeff_range[0])
         self.highpass = int(coeff_range[1])
         self.order = order
@@ -54,49 +51,23 @@ class FDLP:
         self.mask = mask
         self.cut = int(np.round(self.fduration * self.frate))
         self.cut_half = int(np.round(self.fduration * self.frate / 2))
-        self.cut_overlap = int(
-            np.round(self.fduration * self.frate * self.overlap_fraction)
-        )
+        self.cut_overlap = int(np.round(self.fduration * self.frate * self.overlap_fraction))
         if self.complex_mvectors:
-            self.fbank = self.initialize_filterbank(
-                self.n_filters,
-                int(self.fduration * self.srate),
-                self.srate,
-                om_w=1,
-                alp=1,
-                fixed=1,
-                bet=2.5,
-                warp_fact=1,
-                make_symmetric=True,
-            )
+            self.fbank = self.initialize_filterbank(self.n_filters, int(self.fduration * self.srate), self.srate,
+                                                    om_w=1,
+                                                    alp=1, fixed=1, bet=2.5, warp_fact=1, make_symmetric=True)
         else:
-            self.fbank = self.initialize_filterbank(
-                self.n_filters,
-                int(2 * self.fduration * self.srate),
-                self.srate,
-                om_w=1,
-                alp=1,
-                fixed=1,
-                bet=2.5,
-                warp_fact=1,
-            )
+            self.fbank = self.initialize_filterbank(self.n_filters, int(2 * self.fduration * self.srate), self.srate,
+                                                    om_w=1,
+                                                    alp=1, fixed=1, bet=2.5, warp_fact=1)
         if lifter_file is not None:
-            self.lifter = pkl.load(open(lifter_file, "rb"))
+            self.lifter = pkl.load(open(lifter_file, 'rb'))
         else:
             self.lifter = np.ones(coeff_num)
+        self.normalize_uttwise_variance = normalize_uttwise_variance
 
-    def initialize_filterbank(
-        self,
-        nfilters,
-        nfft,
-        srate,
-        om_w=1,
-        alp=1,
-        fixed=1,
-        bet=2.5,
-        warp_fact=1,
-        make_symmetric=False,
-    ):
+    def initialize_filterbank(self, nfilters, nfft, srate, om_w=1, alp=1, fixed=1, bet=2.5, warp_fact=1,
+                              make_symmetric=False):
         f_max = srate / 2
         warped_max = self.__warp_func_bark(f_max, warp_fact)
         fwarped_cf = np.linspace(0, warped_max, nfilters)
@@ -155,83 +126,21 @@ class FDLP:
             if i == 1:
                 k[:, :, :, i - 1] = R[:, :, :, i] / errs[:, :, :, i - 1]
             else:
-                k[:, :, :, i - 1] = (
-                    R[:, :, :, i]
-                    - np.sum(
-                        alphs[:, :, :, 0:i - 1, i - 2]
-                        * np.flip(R[:, :, :, 1:i], [3]),
-                        axis=3,
-                    )
-                ) / errs[:, :, :, i - 1]
+                k[:, :, :, i - 1] = (R[:, :, :, i] - np.sum(
+                    alphs[:, :, :, 0:i - 1, i - 2] * np.flip(R[:, :, :, 1:i], [3]), axis=3)) / errs[:, :, :, i - 1]
             alphs[:, :, :, i - 1, i - 1] = k[:, :, :, i - 1]
             if i > 1:
                 for j in range(1, i):
-                    alphs[:, :, :, j - 1, i - 1] = alphs[:, :, :, j - 1, i - 2] - k[
-                        :, :, :, i - 1
-                    ] * np.conj(alphs[:, :, :, i - j - 1, i - 2])
-            errs[:, :, :, i] = (1 - np.abs(k[:, :, :, i - 1]) ** 2) * errs[
-                :, :, :, i - 1
-            ]
+                    alphs[:, :, :, j - 1, i - 1] = alphs[:, :, :, j - 1, i - 2] - k[:, :, :, i - 1] * np.conj(
+                        alphs[:, :, :,
+                        i - j - 1,
+                        i - 2])
+            errs[:, :, :, i] = (1 - np.abs(k[:, :, :, i - 1]) ** 2) * errs[:, :, :, i - 1]
 
-        return (
-            np.concatenate(
-                (
-                    np.ones((num_batch, num_frames, n_filters, 1), dtype=R.dtype),
-                    -alphs[:, :, :, :, p - 1],
-                ),
-                axis=3,
-            ),
-            errs[:, :, :, -1],
-        )
-
-    def levinson_durbin2(self, R, p):
-        """
-        Levinson Durbin recursion to compute LPC coefficients
-
-        :param R: autocorrelation coefficients - Tensor (batch x num_frames x n_filters  x autocorr)
-        :param p: lpc model order - int
-        :return: Tensor (batch x n_filters x lpc_coeff), Tensor (batch x num_frames x n_filters)
-
-        """
-        num_batch = R.shape[0]
-        num_frames = R.shape[1]
-        n_filters = R.shape[2]
-
-        k = np.zeros((num_batch, num_frames, n_filters, p), dtype=R.dtype)
-        alphs = np.zeros((num_batch, num_frames, n_filters, p, p), dtype=R.dtype)
-        errs = np.zeros((num_batch, num_frames, n_filters, p + 1), dtype=R.dtype)
-        errs[:, :, :, 0] = R[:, :, :, 0]
-        for i in range(1, p + 1):
-            if i == 1:
-                k[:, :, :, i - 1] = R[:, :, :, i] / errs[:, :, :, i - 1]
-            else:
-                k[:, :, :, i - 1] = (
-                    R[:, :, :, i]
-                    - np.sum(
-                        alphs[:, :, :, 0:i - 1, i - 2]
-                        * np.flip(R[:, :, :, 1:i], [3]),
-                        axis=3,
-                    )
-                ) / errs[:, :, :, i - 1]
-            alphs[:, :, :, i - 1, i - 1] = k[:, :, :, i - 1]
-            if i > 1:
-                for j in range(1, i):
-                    alphs[:, :, :, j - 1, i - 1] = (
-                        alphs[:, :, :, j - 1, i - 2]
-                        - k[:, :, :, i - 1] * alphs[:, :, :, i - j - 1, i - 2]
-                    )
-            errs[:, :, :, i] = (1 - k[:, :, :, i - 1] ** 2) * errs[:, :, :, i - 1]
-
-        return (
-            np.concatenate(
-                (
-                    np.ones((num_batch, num_frames, n_filters, 1), dtype=R.dtype),
-                    -alphs[:, :, :, :, p - 1],
-                ),
-                axis=3,
-            ),
-            errs[:, :, :, -1],
-        )
+        return np.concatenate(
+            (np.ones((num_batch, num_frames, n_filters, 1), dtype=R.dtype), -alphs[:, :, :, :, p - 1]), axis=3), errs[:,
+                                                                                                                 :, :,
+                                                                                                                 -1]
 
     def compute_lpc(self, input, order):
 
@@ -252,13 +161,11 @@ class FDLP:
         :return: Array (batch x num_frames x n_filters x int(self.fduration * self.frate))
         """
         if self.complex_mvectors:
-            signal = np.fft.fft(
-                signal, 1 * int(self.fduration * self.frate)
-            )  # (batch x num_frames x n_filters x int(self.fduration * self.frate))
+            signal = np.fft.fft(signal, 1 * int(
+                self.fduration * self.frate))  # (batch x num_frames x n_filters x int(self.fduration * self.frate))
         else:
-            signal = np.fft.fft(
-                signal, 2 * int(self.fduration * self.frate)
-            )  # (batch x num_frames x n_filters x int(self.fduration * self.frate))
+            signal = np.fft.fft(signal, 2 * int(
+                self.fduration * self.frate))  # (batch x num_frames x n_filters x int(self.fduration * self.frate))
         return np.abs(np.exp(signal))
 
     def mask_n_lifter(self, signal):
@@ -284,26 +191,13 @@ class FDLP:
         num_frames = lpc_coeff.shape[1]
         n_filters = lpc_coeff.shape[2]
         lpc_coeff[:, :, :, 1:] = -lpc_coeff[:, :, :, 1:]
-        lpc_cep = np.zeros(
-            (num_batch, num_frames, n_filters, lim), dtype=lpc_coeff.dtype
-        )
+        lpc_cep = np.zeros((num_batch, num_frames, n_filters, lim), dtype=lpc_coeff.dtype)
         lpc_cep[:, :, :, 0] = np.log(np.sqrt(gain))
         lpc_cep[:, :, :, 1] = lpc_coeff[:, :, :, 1]
         if lpc_coeff.shape[3] < lim:
             lpc_coeff = np.concatenate(
-                [
-                    lpc_coeff,
-                    np.zeros(
-                        (
-                            num_batch,
-                            num_frames,
-                            n_filters,
-                            int(lim - lpc_coeff.shape[3] + 1),
-                        )
-                    ),
-                ],
-                axis=3,
-            )
+                [lpc_coeff, np.zeros((num_batch, num_frames, n_filters, int(lim - lpc_coeff.shape[3] + 1)))],
+                axis=3)
         for n in range(2, lim):
             a = np.arange(1, n) / n
             b = np.flip(lpc_coeff[:, :, :, 1:n], axis=[3])
@@ -315,11 +209,11 @@ class FDLP:
     def get_frames(self, signal, no_window=False):
         """Divide speech signal into frames.
 
-        Args:
-            signal: (Batch, Nsamples) or (Batch, Nsample)
-        Returns:
-            output: (Batch, Frame num, Frame dimension) or (Batch, Frame num, Frame dimension)
-        """
+                Args:
+                    signal: (Batch, Nsamples) or (Batch, Nsample)
+                Returns:
+                    output: (Batch, Frame num, Frame dimension) or (Batch, Frame num, Frame dimension)
+                """
 
         flength_samples = int(self.srate * self.fduration)
         frate_samples = int(self.srate / self.lfr)
@@ -333,7 +227,7 @@ class FDLP:
             sp_f = int((flength_samples - 1) / 2)
             extend = int((flength_samples - 1) / 2)
 
-        signal = np.pad(signal, ((0, 0), (extend, extend)), "reflect")
+        signal = np.pad(signal, ((0, 0), (extend, extend)), 'reflect')
         signal_length = signal.shape[1]
         win = np.hamming(flength_samples)
         idx = sp_b
@@ -361,30 +255,19 @@ class FDLP:
 
         num_batch = modspec.shape[0]
         num_frames = modspec.shape[1]
-        feats = np.zeros(
-            (
-                num_batch,
-                int(np.ceil(t_samples * self.frate / self.srate)),
-                self.n_filters,
-            ),
-            dtype=dtype,
-        )
+        feats = np.zeros((num_batch, int(np.ceil(t_samples * self.frate / self.srate)), self.n_filters), dtype=dtype)
         ptr = int(0)
         ### Overlap and Add stage
         for j in range(0, num_frames):
             if j == 0:
                 if feats.shape[1] < self.cut_half:
-                    feats += modspec[
-                        :, j, :self.cut_half:self.cut_half + feats.shape[1], :
-                    ]
+                    feats += modspec[:, j, :self.cut_half:self.cut_half + feats.shape[1], :]
                 else:
-                    feats[:, ptr:ptr + self.cut_half, :] += modspec[
-                        :, j, self.cut_half:, :
-                    ]
+                    feats[:, ptr:ptr + self.cut_half, :] += modspec[:, j, self.cut_half:, :]
 
             elif j == num_frames - 1 or j == num_frames - 2:
                 if modspec.shape[2] >= feats.shape[1] - ptr:
-                    feats[:, ptr:, :] += modspec[:, j, : feats.shape[1] - ptr, :]
+                    feats[:, ptr:, :] += modspec[:, j, :feats.shape[1] - ptr, :]
                 else:
                     feats[:, ptr:ptr + self.cut, :] += modspec[:, j, :, :]
             else:
@@ -411,6 +294,7 @@ class FDLP:
 
         """
         t_samples = input.shape[1]
+        num_batch = input.shape[0]
 
         # First divide the signal into frames
         frames = self.get_frames(input, no_window=self.no_window)
@@ -418,27 +302,18 @@ class FDLP:
 
         # Compute DCT/FFT (olens remains the same)
         if self.complex_mvectors:
-            frames = (
-                np.fft.ifft(frames) * frames.shape[1]
-            )  # [:, :, 0:int(frames.shape[2]/2)]
+            frames = np.fft.ifft(frames) * frames.shape[1]  # [:, :, 0:int(frames.shape[2]/2)]
         else:
-            frames = freqAnalysis.dct(frames) / np.sqrt(
-                2 * int(self.srate * self.fduration)
-            )
+            frames = freqAnalysis.dct(frames) / np.sqrt(2 * int(self.srate * self.fduration))
 
         fbank = self.fbank
 
         frames = np.tile(frames[:, :, np.newaxis, :], (1, 1, self.n_filters, 1))
-        frames = (
-            frames * fbank[:, 0:-1]
-        )  # batch x num_frames x n_filters x frame_dim of 1.5 secs
+        frames = frames * fbank[:, 0:-1]  # batch x num_frames x n_filters x frame_dim of 1.5 secs
 
-        frames, gain = self.compute_lpc(
-            frames, self.order
-        )  # batch x num_frames x n_filters x lpc_coeff
-        frames = self.compute_modspec_from_lpc(
-            gain, frames, self.coeff_num
-        )  # batch x num_frames x n_filters x num_modspec
+        frames, gain = self.compute_lpc(frames, self.order)  # batch x num_frames x n_filters x lpc_coeff
+        frames = self.compute_modspec_from_lpc(gain, frames,
+                                               self.coeff_num)  # batch x num_frames x n_filters x num_modspec
         modspec = frames
 
         if self.return_mvector:
@@ -447,37 +322,24 @@ class FDLP:
             if self.lfr != self.frate:
                 # We have to interpolate using splines features to frame rate
                 modspec = modspec.reshape(
-                    (modspec.shape[0], modspec.shape[1], -1)
-                )  # batch x num_frames x n_filters * num_modspec
-                modspec = modspec.transpose(
-                    (0, 2, 1)
-                )  # batch x n_filters * num_modspec x num_frames
+                    (modspec.shape[0], modspec.shape[1], -1))  # batch x num_frames x n_filters * num_modspec
+                modspec = modspec.transpose((0, 2, 1))  # batch x n_filters * num_modspec x num_frames
                 x = np.arange(num_frames)
-                f = interp1d(x, modspec, axis=2, kind="cubic")
+                f = interp1d(x, modspec, axis=2, kind='cubic')
                 num_frames_interpolated = int(num_frames * self.frate / self.lfr)
                 x_interpolated = np.linspace(0, num_frames - 1, num_frames_interpolated)
                 modspec = f(x_interpolated)
-                modspec = modspec.transpose(
-                    (0, 2, 1)
-                )  # batch  x num_frames_interpolated x n_filters * num_modspec
+                modspec = modspec.transpose((0, 2, 1))  # batch  x num_frames_interpolated x n_filters * num_modspec
 
         else:
             # if self.complex_mvectors:
             # modspec = modspec[:, :, :, ::2]
-            modspec = self.mask_n_lifter(
-                modspec
-            )  # (batch x num_frames x n_filters x num_modspec)
+            modspec = self.mask_n_lifter(modspec)  # (batch x num_frames x n_filters x num_modspec)
             modspec = self.modspec_2_fdlpresponse(
-                modspec
-            )  # (batch x num_frames x n_filters x int(self.fduration * self.frate))
-            modspec = (
-                modspec[:, :, :, 0:self.cut]
-                * np.hanning(self.cut)
-                / np.hamming(self.cut)
-            )
-            modspec = np.transpose(
-                modspec, (0, 1, 3, 2)
-            )  # (batch x num_frames x int(self.fduration * self.frate) x n_filters)
+                modspec)  # (batch x num_frames x n_filters x int(self.fduration * self.frate))
+            modspec = modspec[:, :, :, 0:self.cut] * np.hanning(self.cut) / np.hamming(self.cut)
+            modspec = np.transpose(modspec,
+                                   (0, 1, 3, 2))  # (batch x num_frames x int(self.fduration * self.frate) x n_filters)
 
             # OVERLAP AND ADD
             modspec = self.OLA(modspec=modspec, t_samples=t_samples, dtype=input.dtype)
@@ -502,6 +364,7 @@ class FDLP:
 
         # Check if data is multichannel or single-channel
         bs = input.shape[0]  # batch size
+        nsamples = input.shape[1]
         if len(input.shape) == 3:
             multi_channel = True
             # input: (Batch, Nsample, Channels) -> (Batch * Channels, Nsample)
@@ -509,14 +372,15 @@ class FDLP:
         else:
             multi_channel = False
 
+        if self.normalize_uttwise_variance and not multi_channel:
+            input /= np.tile(np.var(input, axis=1), (nsamples, 1)).T
+
         # Compute FDLP spectrogram
         output, olens = self.compute_spectrogram(input, ilens)
 
         if multi_channel:
             # output: (Batch * Channel, Frames, n_filters)
             # -> (Batch, Frame, Channel, n_filters)
-            output = output.reshape(
-                (bs, -1, output.shape[1], output.shape[2])
-            ).transpose(0, 2, 1, 3)
+            output = output.reshape((bs, -1, output.shape[1], output.shape[2])).transpose(0, 2, 1, 3)
 
         return output, olens
