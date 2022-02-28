@@ -35,7 +35,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'fdlp_spectrogram = fdlp.bin.cli:cli',
+            'make-fdlp = fdlp.bin.cli:cli',
         ],
     }
 )

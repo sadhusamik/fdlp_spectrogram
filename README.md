@@ -14,6 +14,8 @@ The implementation allows fast batch computation of FDLP-spectrogram that can ev
 
 To compute FDLP spectrogram
 
+### Python
+
 ```python
 from fdlp import FDLP
 fdlp = FDLP()
@@ -22,6 +24,13 @@ fdlp = FDLP()
 # set lens=None if you are computing features one utterance at a time and not as a batch
 feats, olens = fdlp.extract_feats(speech, lens)
 
+```
+
+### CLI
+
+```
+# Kaldi-like features
+make-fdlp kaldi wav.scp "ark:| copy-feats ark:- ark,scp:/path/to/srotage/make_fdlp.ark,data/feats.scp" [data/utt2num_frames]
 ```
 
 The fdlp class takes the following important parameters which are set to reasonable default values.
@@ -71,5 +80,13 @@ The fdlp class takes the following important parameters for M-vector computation
 ```
 Results with these features for Kaldi TDNN models for REVERB data set can be found in **Modulation Vectors as Robust Feature Representation for ASR in Domain Mismatched Conditions** (https://www.isca-speech.org/archive_v0/Interspeech_2019/pdfs/2723.pdf)
 
+## Installation
 
+### Pip
+
+To install the latest, unreleased version, do:
+
+```
+pip install git+https://github.com/sadhusamik/fdlp_spectrogram
+```
 
