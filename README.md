@@ -26,13 +26,6 @@ feats, olens = fdlp.extract_feats(speech, lens)
 
 ```
 
-### CLI
-
-```
-# Kaldi-like features
-make-fdlp kaldi wav.scp "ark:| copy-feats ark:- ark,scp:/path/to/srotage/make_fdlp.ark,data/feats.scp" [data/utt2num_frames]
-```
-
 The fdlp class takes the following important parameters which are set to reasonable default values.
 
 ```python
@@ -45,6 +38,20 @@ The fdlp class takes the following important parameters which are set to reasona
  overlap_fraction: float = 0.25,  # Overlap fraction in Overlap-Add
  srate: int = 16000    # Sample rate of the speech signal
 ```
+
+### CLI
+
+```
+# Kaldi-like features
+make-fdlp kaldi wav.scp "ark:| copy-feats ark:- ark,scp:/path/to/srotage/make_fdlp.ark,data/feats.scp" [data/utt2num_frames]
+```
+
+For more info type:
+```
+make-fdlp kaldi --help
+```
+
+### Results
 
 The performance of an e2e ASR with these features can be found in https://arxiv.org/abs/2103.14129 and is summarized below 
 
