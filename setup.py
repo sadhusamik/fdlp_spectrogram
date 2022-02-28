@@ -23,7 +23,8 @@ setup(
     install_requires=[
         "numpy>=1.21.1",
         "scipy>=1.8.0",
-        "typeguard"
+        "typeguard",
+        "click"
     ],
     classifiers=[
         "Development Status :: 3 - Alpha",
@@ -31,5 +32,10 @@ setup(
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
         "License :: OSI Approved :: Apache Software License",
         "Programming Language :: Python :: 3"
-    ]
+    ],
+    entry_points={
+        'console_scripts': [
+            'fdlp_spectrogram = fdlp.bin.cli:cli',
+        ],
+    }
 )
