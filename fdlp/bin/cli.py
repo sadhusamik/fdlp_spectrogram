@@ -7,7 +7,7 @@ def cli():
 
 
 @cli.command()
-@click.option('--n-filters', default=1,
+@click.option('--n-filters', default=80,
 	help='Number of filters'
 )
 @click.option('--coeff-num', default=100,
@@ -44,8 +44,9 @@ def kaldi(wav_scp, wspecifier, n_filters, coeff_num, coeff_range, order, fdurati
     You can also specify optional `utt2num_frams` file to store feature lenghts
     for each utterance.
     """
-    import librosa
+    import soundfile as sf
     import kaldi_io
+    import numpy as np
 
     click.echo(f"make-kaldi-fdlp {wav_scp} {wspecifier}")
     fea_extractor = FDLP(n_filters, coeff_num, coeff_range, order,
@@ -57,9 +58,18 @@ def kaldi(wav_scp, wspecifier, n_filters, coeff_num, coeff_range, order, fdurati
          kaldi_io.open_or_fd(wspecifier, "wb") as fd_out:
         for line in fd_in:
             utt, audio_f = line.split()
-            x, sr = librosa.load(audio_f, sr=srate)
-            fea, fea_len = fea_extractor.extract_feats(x, lens=None)
-            kaldi_io.write_mat(fd_out, fea, key=utt)
+            offset = 0
+            if len(audio_f.split(":")) == 2:
+                audio_f, offset = audio_f.split(":")
+                offset = int(offset)
+
+            with open(audio_f, "rb") as f:
+                f.seek(offset)
+                x, sr = sf.read(f)
+
+            x = np.expand_dims(x, axis=0)
+            fea, fea_len = fea_extractor.extract_feats(x, ilens=None)
+            kaldi_io.write_mat(fd_out, np.squeeze(fea, axis=0), key=utt)
             feat_lens[utt] = fea_len
     
     if utt2num_frames is not None:
