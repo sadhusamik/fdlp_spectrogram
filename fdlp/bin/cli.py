@@ -88,6 +88,8 @@ def kaldi(wav_scp, wspecifier, n_filters, coeff_num, coeff_range, order, fdurati
                 fd.write(f"{utt} {fea_len}\n")
 
     print(f"Failed to extract FDLP features in {err_cnt}/{cnt} cases.", file=sys.stderr)
+    if float(err_cnt)/cnt > 0.5:
+        sys.exit(-1)
 
 if __name__ == '__main__':
     cli()
