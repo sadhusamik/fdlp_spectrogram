@@ -71,5 +71,21 @@ The fdlp class takes the following important parameters for M-vector computation
 ```
 Results with these features for Kaldi TDNN models for REVERB data set can be found in **Modulation Vectors as Robust Feature Representation for ASR in Domain Mismatched Conditions** (https://www.isca-speech.org/archive_v0/Interspeech_2019/pdfs/2723.pdf)
 
+## Complex Frequency Domain Linear Prediction 
+
+paper: https://arxiv.org/pdf/2203.13216.pdf
+
+This work modifies the conventional FDLP model. The M-vectors computed using complex FDLP exactly corresponds to the modulation spectrum of speech in different frequency sub-bands. 
+
+```python
+from fdlp.src.fdlp import fdlp
+fdlp = fdlp(lfr=10, return_mvector=True, complex_mvectors=True)
+# speech (batch x signal length) : padded speech signals formed into a batch
+# lens (batch) : lengths of each padded speech siganl in the batch
+feats, olens = fdlp.extract_feats(speech, lens)
+
+```
+
+
 
 
