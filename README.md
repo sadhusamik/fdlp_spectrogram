@@ -14,9 +14,11 @@ The implementation allows fast batch computation of FDLP-spectrogram that can ev
 
 To compute FDLP spectrogram
 
+### Python
+
 ```python
-from fdlp.src.fdlp import fdlp
-fdlp = fdlp()
+from fdlp import FDLP
+fdlp = FDLP()
 # speech (batch x signal length) : padded speech signals formed into a batch
 # lens (batch) : lengths of each padded speech siganl in the batch
 # set lens=None if you are computing features one utterance at a time and not as a batch
@@ -37,6 +39,20 @@ The fdlp class takes the following important parameters which are set to reasona
  srate: int = 16000    # Sample rate of the speech signal
 ```
 
+### CLI
+
+```
+# Kaldi-like features
+make-fdlp kaldi wav.scp "ark:| copy-feats ark:- ark,scp:/path/to/srotage/make_fdlp.ark,data/feats.scp" [data/utt2num_frames]
+```
+
+For more info type:
+```
+make-fdlp kaldi --help
+```
+
+### Results
+
 The performance of an e2e ASR with these features can be found in https://arxiv.org/abs/2103.14129 and is summarized below 
 
 | Data set                                                        |  mel-spectrogram  |  FDLP-spectrogram |
@@ -48,8 +64,8 @@ The performance of an e2e ASR with these features can be found in https://arxiv.
 ## Modulation vector (M-vector)
 
 ```python
-from fdlp.src.fdlp import fdlp
-fdlp = fdlp(lfr=10, return_mvector=True)
+from fdlp import FDLP
+fdlp = FDLP(lfr=10, return_mvector=True)
 # speech (batch x signal length) : padded speech signals formed into a batch
 # lens (batch) : lengths of each padded speech siganl in the batch
 feats, olens = fdlp.extract_feats(speech, lens)
@@ -85,7 +101,14 @@ fdlp = fdlp(lfr=10, return_mvector=True, complex_mvectors=True)
 feats, olens = fdlp.extract_feats(speech, lens)
 
 ```
+## Installation
 
+### Pip
 
+To install the latest, unreleased version, do:
+
+```
+pip install git+https://github.com/sadhusamik/fdlp_spectrogram
+```
 
 

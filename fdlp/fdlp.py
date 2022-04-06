@@ -1,14 +1,12 @@
-import sys
-
 import numpy as np
 from random import randrange
 from typeguard import check_argument_types
-import scipy.fftpack as freqAnalysis
+import scipy.fft as freqAnalysis
 import pickle as pkl
 from scipy.interpolate import interp1d
 
 
-class fdlp:
+class FDLP:
     def __init__(self,
                  n_filters: int = 80,
                  coeff_num: int = 100,
