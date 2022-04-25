@@ -315,7 +315,7 @@ class FDLP:
 
     def acc_log_spectrum(self, input):
         frames = self.get_frames(input, no_window=self.no_window)
-        return np.sum(np.fft.fft(frames)[0], axis=0)
+        return frames.shape[1], np.sum(np.log(np.fft.fft(frames)[0]), axis=0)
 
     def compute_spectrogram(self, input, ilens=None):
         """Main function that computes FDLp spectrogram.
