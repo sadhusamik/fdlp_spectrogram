@@ -19,8 +19,10 @@ class FDLP:
                  lfr: int = 33,  # only used when return_mvector = True
                  return_mvector: bool = False,
                  complex_mvectors: bool = False,
+                 return_phase: bool = False,
                  no_window: bool = False,
                  normalize_uttwise_variance: bool = False,
+                 spectral_substraction_signal: np.array = None,
                  srate: int = 16000):
         assert check_argument_types()
 
@@ -37,6 +39,7 @@ class FDLP:
         self.overlap_fraction = 1 - overlap_fraction
         self.no_window = no_window
         self.complex_mvectors = complex_mvectors
+        self.return_phase = return_phase
         if return_mvector:
             self.lfr = lfr
         else:
@@ -65,6 +68,26 @@ class FDLP:
         else:
             self.lifter = np.ones(coeff_num)
         self.normalize_uttwise_variance = normalize_uttwise_variance
+
+        # These can be changed inside the forward function
+        self.t_samples = None
+        self.modspec_phase = None
+        self.modspec_magnitude = None
+        self.input_dtype = None
+
+        if spectral_substraction_signal is not None:
+            if spectral_substraction_signal.shape[0] < self.srate * self.fduration:
+                # append zeros
+                self.spectral_substraction_vector = np.fft.fft(np.concatenate((spectral_substraction_signal,
+                                                                               np.zeros(
+                                                                                   int(self.srate * self.fduration) -
+                                                                                   spectral_substraction_signal.shape[
+                                                                                       0]))))
+            else:
+                self.spectral_substraction_vector = np.fft.fft(
+                    spectral_substraction_signal[0:self.srate * self.fduration])
+        else:
+            self.spectral_substraction_vector = None
 
     def initialize_filterbank(self, nfilters, nfft, srate, om_w=1, alp=1, fixed=1, bet=2.5, warp_fact=1,
                               make_symmetric=False):
@@ -283,6 +306,17 @@ class FDLP:
 
         return feats
 
+    def spectral_substraction_preprocessing(self, frames):
+        frames_fft = np.fft.fft(frames)
+        # frames_fft_magnitude = np.exp(np.log(np.abs(frames_fft)) - np.log(self.spectral_substraction_vector))
+        frames_fft_magnitude = np.exp(np.log(frames_fft) - np.log(self.spectral_substraction_vector))
+        # return np.real(np.fft.ifft(frames_fft_magnitude * np.exp(1j * np.angle(frames_fft))))
+        return np.real(np.fft.ifft(frames_fft_magnitude))
+
+    def acc_log_spectrum(self, input):
+        frames = self.get_frames(input, no_window=self.no_window)
+        return np.sum(np.fft.fft(frames)[0], axis=0)
+
     def compute_spectrogram(self, input, ilens=None):
         """Main function that computes FDLp spectrogram.
 
@@ -294,11 +328,16 @@ class FDLP:
 
         """
         t_samples = input.shape[1]
+        self.t_samples = t_samples
+        self.input_dtype = input.dtype
         num_batch = input.shape[0]
 
         # First divide the signal into frames
         frames = self.get_frames(input, no_window=self.no_window)
         num_frames = frames.shape[1]
+
+        if self.spectral_substraction_vector is not None:
+            frames = self.spectral_substraction_preprocessing(frames)
 
         # Compute DCT/FFT (olens remains the same)
         if self.complex_mvectors:
@@ -315,10 +354,16 @@ class FDLP:
         frames = self.compute_modspec_from_lpc(gain, frames,
                                                self.coeff_num)  # batch x num_frames x n_filters x num_modspec
         modspec = frames
+        self.modspec_phase = np.angle(modspec)
+        self.modspec_magnitude = np.abs(modspec)
 
         if self.return_mvector:
             if self.complex_mvectors:
-                modspec = np.abs(modspec)  # Return only magnitude spectrum
+                if self.return_phase:
+                    modspec = np.concatenate((np.abs(modspec), np.angle(modspec)),
+                                             axis=3)  # Return magnitude and phase of modulation spectrum
+                else:
+                    modspec = np.abs(modspec)  # Return only magnitude spectrum
             if self.lfr != self.frate:
                 # We have to interpolate using splines features to frame rate
                 modspec = modspec.reshape(
@@ -350,6 +395,20 @@ class FDLP:
             olens = None
 
         return modspec, olens
+
+    def modspec_2_spectrum(self, modspec):
+
+        modspec = self.mask_n_lifter(modspec)  # (batch x num_frames x n_filters x num_modspec)
+        modspec = self.modspec_2_fdlpresponse(
+            modspec)  # (batch x num_frames x n_filters x int(self.fduration * self.frate))
+        modspec = modspec[:, :, :, 0:self.cut] * np.hanning(self.cut) / np.hamming(self.cut)
+        modspec = np.transpose(modspec,
+                               (0, 1, 3, 2))  # (batch x num_frames x int(self.fduration * self.frate) x n_filters)
+
+        # OVERLAP AND ADD
+        modspec = self.OLA(modspec=modspec, t_samples=self.t_samples, dtype=self.input_dtype)
+
+        return modspec
 
     def extract_feats(self, input, ilens=None):
         """Compute FDLP-Spectrogram.
@@ -384,3 +443,4 @@ class FDLP:
             output = output.reshape((bs, -1, output.shape[1], output.shape[2])).transpose(0, 2, 1, 3)
 
         return output, olens
+
