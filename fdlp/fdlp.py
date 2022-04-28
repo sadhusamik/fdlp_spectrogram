@@ -23,6 +23,7 @@ class FDLP:
                  no_window: bool = False,
                  normalize_uttwise_variance: bool = False,
                  spectral_substraction_signal: np.array = None,
+                 spectral_substraction_vector: np.array = None,
                  srate: int = 16000):
         assert check_argument_types()
 
@@ -78,16 +79,19 @@ class FDLP:
         if spectral_substraction_signal is not None:
             if spectral_substraction_signal.shape[0] < self.srate * self.fduration:
                 # append zeros
-                self.spectral_substraction_vector = np.fft.fft(np.concatenate((spectral_substraction_signal,
-                                                                               np.zeros(
-                                                                                   int(self.srate * self.fduration) -
-                                                                                   spectral_substraction_signal.shape[
-                                                                                       0]))))
+                self.spectral_substraction_vector = np.log(np.fft.fft(np.concatenate((spectral_substraction_signal,
+                                                                                      np.zeros(
+                                                                                          int(self.srate * self.fduration) -
+                                                                                          spectral_substraction_signal.shape[
+                                                                                              0])))))
             else:
-                self.spectral_substraction_vector = np.fft.fft(
-                    spectral_substraction_signal[0:self.srate * self.fduration])
+                self.spectral_substraction_vector = np.log(np.fft.fft(
+                    spectral_substraction_signal[0:self.srate * self.fduration]))
         else:
             self.spectral_substraction_vector = None
+
+        if spectral_substraction_vector is not None:
+            self.spectral_substraction_vector = spectral_substraction_vector
 
     def initialize_filterbank(self, nfilters, nfft, srate, om_w=1, alp=1, fixed=1, bet=2.5, warp_fact=1,
                               make_symmetric=False):
@@ -309,13 +313,19 @@ class FDLP:
     def spectral_substraction_preprocessing(self, frames):
         frames_fft = np.fft.fft(frames)
         # frames_fft_magnitude = np.exp(np.log(np.abs(frames_fft)) - np.log(self.spectral_substraction_vector))
-        frames_fft_magnitude = np.exp(np.log(frames_fft) - np.log(self.spectral_substraction_vector))
+        frames_fft_magnitude = np.exp(np.log(frames_fft) - self.spectral_substraction_vector)
         # return np.real(np.fft.ifft(frames_fft_magnitude * np.exp(1j * np.angle(frames_fft))))
         return np.real(np.fft.ifft(frames_fft_magnitude))
 
     def acc_log_spectrum(self, input):
         frames = self.get_frames(input, no_window=self.no_window)
-        return frames.shape[1], np.sum(np.log(np.fft.fft(frames)[0]), axis=0)
+        frames = np.fft.fft(frames[0])
+        frames_mag = np.abs(frames)
+        frames_ang = np.angle(frames)
+        frames_mag = np.sum(np.log(frames_mag), axis=0)
+        frames_ang = np.sum(frames_ang, axis=0)
+        frames_ang = (frames_ang + np.pi) % (2 * np.pi) - np.pi
+        return frames.shape[1], frames_mag + 1j * frames_ang
 
     def compute_spectrogram(self, input, ilens=None):
         """Main function that computes FDLp spectrogram.
@@ -443,4 +453,3 @@ class FDLP:
             output = output.reshape((bs, -1, output.shape[1], output.shape[2])).transpose(0, 2, 1, 3)
 
         return output, olens
-
