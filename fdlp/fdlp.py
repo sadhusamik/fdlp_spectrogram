@@ -321,7 +321,7 @@ class FDLP:
         frames = self.get_frames(input, no_window=self.no_window)
         frames = np.fft.fft(frames[0])
         frames_mag = np.abs(frames)
-        frames_ang = np.angle(frames)
+        frames_ang = np.unwrap(np.angle(frames))
         frames_mag = np.sum(np.log(frames_mag), axis=0)
         frames_ang = np.sum(frames_ang, axis=0)
         #frames_ang = (frames_ang + np.pi) % (2 * np.pi) - np.pi
