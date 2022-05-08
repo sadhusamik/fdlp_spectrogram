@@ -1,7 +1,7 @@
 import numpy as np
 from random import randrange
 from typeguard import check_argument_types
-import scipy.fft as freqAnalysis
+from scipy.fftpack import dct
 import pickle as pkl
 from scipy.interpolate import interp1d
 import librosa
@@ -374,7 +374,7 @@ class FDLP:
         if self.complex_mvectors:
             frames = np.fft.ifft(frames) * frames.shape[1]  # [:, :, 0:int(frames.shape[2]/2)]
         else:
-            frames = freqAnalysis.dct(frames) / np.sqrt(2 * int(self.srate * self.fduration))
+            frames = dct(frames) / np.sqrt(2 * int(self.srate * self.fduration))
 
         fbank = self.fbank
 
