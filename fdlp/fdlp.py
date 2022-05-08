@@ -4,6 +4,7 @@ from typeguard import check_argument_types
 import scipy.fft as freqAnalysis
 import pickle as pkl
 from scipy.interpolate import interp1d
+import librosa
 
 
 class FDLP:
@@ -21,12 +22,14 @@ class FDLP:
                  complex_mvectors: bool = False,
                  return_phase: bool = False,
                  no_window: bool = False,
+                 use_gl: bool = False,
                  normalize_uttwise_variance: bool = False,
                  spectral_substraction_signal: np.array = None,
                  spectral_substraction_vector: np.array = None,
                  srate: int = 16000):
         assert check_argument_types()
 
+        self.use_gl = use_gl
         self.n_filters = n_filters
         self.coeff_num = coeff_num
         coeff_range = coeff_range.split(',')
@@ -92,6 +95,8 @@ class FDLP:
 
         if spectral_substraction_vector is not None:
             self.spectral_substraction_vector = spectral_substraction_vector
+        self.reconstructed_speech = None
+        self.reconstructed_speech_chunk = None
 
     def initialize_filterbank(self, nfilters, nfft, srate, om_w=1, alp=1, fixed=1, bet=2.5, warp_fact=1,
                               make_symmetric=False):
@@ -310,10 +315,26 @@ class FDLP:
 
         return feats
 
-    def spectral_substraction_preprocessing(self, frames):
+    def spectral_substraction_preprocessing(self, frames, use_gl=False):
         frames_fft = np.fft.fft(frames)
         # frames_fft_magnitude = np.exp(np.log(np.abs(frames_fft)) - np.log(self.spectral_substraction_vector))
-        frames_fft_magnitude = np.exp(np.log(frames_fft) - self.spectral_substraction_vector)
+        if use_gl:
+            # frames_fft_magnitude = np.exp(
+            #    np.log(np.abs(frames_fft)) - self.spectral_substraction_vector)  # This is only magnitude
+            frames_fft_magnitude = np.exp(np.log(frames_fft) - self.spectral_substraction_vector)
+            # frames_fft_magnitude = frames_fft * self.spectral_substraction_vector
+            # frames_fft_magnitude = frames_fft
+            frames_fft_magnitude = np.transpose(frames_fft_magnitude, axes=(0, 2, 1))
+            reconstructed_speech = librosa.griffinlim(
+                np.abs(frames_fft_magnitude[:, 0:int(self.fduration * self.srate / 2) + 1, :]),
+                hop_length=int(self.fduration * self.srate / 2),
+                win_length=int(self.fduration * self.srate), window=np.hamming(int(self.fduration * self.srate)),
+                n_iter=500, momentum=0.99, pad_mode='reflect')
+            self.reconstructed_speech = reconstructed_speech
+            frames_fft_magnitude = np.transpose(frames_fft_magnitude, axes=(0, 2, 1))
+        else:
+            frames_fft_magnitude = np.exp(
+                np.log(frames_fft) - self.spectral_substraction_vector)  # This is magnitude + phase
         # return np.real(np.fft.ifft(frames_fft_magnitude * np.exp(1j * np.angle(frames_fft))))
         return np.real(np.fft.ifft(frames_fft_magnitude))
 
@@ -321,10 +342,10 @@ class FDLP:
         frames = self.get_frames(input, no_window=self.no_window)
         frames = np.fft.fft(frames[0])
         frames_mag = np.abs(frames)
-        frames_ang = np.unwrap(np.angle(frames))
+        frames_ang = frames / frames_mag  # np.unwrap(np.angle(frames))
         frames_mag = np.sum(np.log(frames_mag), axis=0)
         frames_ang = np.sum(frames_ang, axis=0)
-        #frames_ang = (frames_ang + np.pi) % (2 * np.pi) - np.pi
+        # frames_ang = (frames_ang + np.pi) % (2 * np.pi) - np.pi
         return frames.shape[0], frames_mag, frames_ang
 
     def compute_spectrogram(self, input, ilens=None):
@@ -347,8 +368,8 @@ class FDLP:
         num_frames = frames.shape[1]
 
         if self.spectral_substraction_vector is not None:
-            frames = self.spectral_substraction_preprocessing(frames)
-
+            frames = self.spectral_substraction_preprocessing(frames, use_gl=self.use_gl)
+            self.reconstructed_speech_chunk = frames
         # Compute DCT/FFT (olens remains the same)
         if self.complex_mvectors:
             frames = np.fft.ifft(frames) * frames.shape[1]  # [:, :, 0:int(frames.shape[2]/2)]
