@@ -23,6 +23,7 @@ class FDLP:
                  return_phase: bool = False,
                  no_window: bool = False,
                  use_gl: bool = False,
+                 fbank_config: str = '1,1,2,5',
                  normalize_uttwise_variance: bool = False,
                  spectral_substraction_signal: np.array = None,
                  spectral_substraction_vector: np.array = None,
@@ -30,6 +31,7 @@ class FDLP:
         assert check_argument_types()
 
         self.use_gl = use_gl
+        self.fbank_config = [ float(x) for x in fbank_config.split(',')]
         self.n_filters = n_filters
         self.coeff_num = coeff_num
         coeff_range = coeff_range.split(',')
@@ -61,12 +63,14 @@ class FDLP:
         self.cut_overlap = int(np.round(self.fduration * self.frate * self.overlap_fraction))
         if self.complex_mvectors:
             self.fbank = self.initialize_filterbank(self.n_filters, int(self.fduration * self.srate), self.srate,
-                                                    om_w=1,
-                                                    alp=1, fixed=1, bet=2.5, warp_fact=1, make_symmetric=True)
+                                                    om_w=self.fbank_config[0],
+                                                    alp=self.fbank_config[1], fixed=1, bet=self.fbank_config[2],
+                                                    warp_fact=1, make_symmetric=True)
         else:
             self.fbank = self.initialize_filterbank(self.n_filters, int(2 * self.fduration * self.srate), self.srate,
-                                                    om_w=1,
-                                                    alp=1, fixed=1, bet=2.5, warp_fact=1)
+                                                    om_w=self.fbank_config[0],
+                                                    alp=self.fbank_config[1], fixed=1, bet=self.fbank_config[2],
+                                                    warp_fact=1)
         if lifter_file is not None:
             self.lifter = pkl.load(open(lifter_file, 'rb'))
         else:
@@ -97,8 +101,10 @@ class FDLP:
             self.spectral_substraction_vector = spectral_substraction_vector
         self.reconstructed_speech = None
         self.reconstructed_speech_chunk = None
+        self.logmag = None
+        self.ph = None
 
-    def initialize_filterbank(self, nfilters, nfft, srate, om_w=1, alp=1, fixed=1, bet=2.5, warp_fact=1,
+    def initialize_filterbank(self, nfilters, nfft, srate, om_w=1.0, alp=1.0, fixed=1, bet=2.5, warp_fact=1,
                               make_symmetric=False):
         f_max = srate / 2
         warped_max = self.__warp_func_bark(f_max, warp_fact)
@@ -316,36 +322,59 @@ class FDLP:
         return feats
 
     def spectral_substraction_preprocessing(self, frames, use_gl=False):
+        from scipy.signal import hilbert
         frames_fft = np.fft.fft(frames)
         # frames_fft_magnitude = np.exp(np.log(np.abs(frames_fft)) - np.log(self.spectral_substraction_vector))
         if use_gl:
-            # frames_fft_magnitude = np.exp(
-            #    np.log(np.abs(frames_fft)) - self.spectral_substraction_vector)  # This is only magnitude
-            frames_fft_magnitude = np.exp(np.log(frames_fft) - self.spectral_substraction_vector)
-            # frames_fft_magnitude = frames_fft * self.spectral_substraction_vector
-            # frames_fft_magnitude = frames_fft
-            frames_fft_magnitude = np.transpose(frames_fft_magnitude, axes=(0, 2, 1))
+            frames_fft_magnitude = np.log(np.abs(frames_fft)) - self.spectral_substraction_vector
+            # self.logmag = frames_fft_magnitude
+            # ph = -np.imag(hilbert(frames_fft_magnitude))  # estimated phase
+            # ph[:, :, int(self.fduration * self.srate / 2):] = -np.flip(ph[:, :, 0:int(self.fduration * self.srate / 2)],
+            # axis = -1)
+            # ph = np.angle(frames_fft)
+            # ph = (ph + np.pi) % (2 * np.pi) - np.pi
+            # self.ph = ph
+            # frames_fft_magnitude = np.exp(frames_fft_magnitude + 1j * ph)
+            # frames_fft_magnitude = np.transpose(frames_fft_magnitude, axes=(0, 2, 1))
+
             reconstructed_speech = librosa.griffinlim(
                 np.abs(frames_fft_magnitude[:, 0:int(self.fduration * self.srate / 2) + 1, :]),
                 hop_length=int(self.fduration * self.srate / 2),
                 win_length=int(self.fduration * self.srate), window=np.hamming(int(self.fduration * self.srate)),
                 n_iter=500, momentum=0.99, pad_mode='reflect')
+
             self.reconstructed_speech = reconstructed_speech
-            frames_fft_magnitude = np.transpose(frames_fft_magnitude, axes=(0, 2, 1))
+
+        # frames_fft_magnitude = np.transpose(frames_fft_magnitude, axes=(0, 2, 1))
+
         else:
-            frames_fft_magnitude = np.exp(
-                np.log(frames_fft) - self.spectral_substraction_vector)  # This is magnitude + phase
-        # return np.real(np.fft.ifft(frames_fft_magnitude * np.exp(1j * np.angle(frames_fft))))
+            frames_fft_magnitude = np.log(np.abs(frames_fft)) - self.spectral_substraction_vector[0]  # Magnitude part
+            self.logmag = frames_fft_magnitude
+            frames_fft_phase = np.unwrap(np.angle(frames_fft)) - self.spectral_substraction_vector[1]  # Phase part
+            frames_fft_phase = (frames_fft_phase + np.pi) % (2 * np.pi) - np.pi
+            frames_fft_phase[:, :, int(self.fduration * self.srate / 2):] = -frames_fft_phase[:, :,
+                                                                             0:int(self.fduration * self.srate / 2)]
+            self.ph = frames_fft_phase
+            frames_fft_magnitude = np.exp(frames_fft_magnitude + 1j * frames_fft_phase)
+
         return np.real(np.fft.ifft(frames_fft_magnitude))
 
-    def acc_log_spectrum(self, input):
+    def acc_log_spectrum_fft(self, input):
         frames = self.get_frames(input, no_window=self.no_window)
         frames = np.fft.fft(frames[0])
         frames_mag = np.abs(frames)
-        frames_ang = frames / frames_mag  # np.unwrap(np.angle(frames))
+        frames_ang = np.unwrap(np.angle(frames))
         frames_mag = np.sum(np.log(frames_mag), axis=0)
         frames_ang = np.sum(frames_ang, axis=0)
         # frames_ang = (frames_ang + np.pi) % (2 * np.pi) - np.pi
+        return frames.shape[0], frames_mag, frames_ang
+
+    def acc_log_spectrum(self, input):
+        frames = self.get_frames(input, no_window=self.no_window)
+        frames = dct(frames[0])
+        frames_mag = frames
+        frames_mag = np.sum(frames_mag, axis=0)
+        frames_ang = np.zeros(frames_mag.shape)
         return frames.shape[0], frames_mag, frames_ang
 
     def compute_spectrogram(self, input, ilens=None):
@@ -428,7 +457,6 @@ class FDLP:
         return modspec, olens
 
     def modspec_2_spectrum(self, modspec):
-
         modspec = self.mask_n_lifter(modspec)  # (batch x num_frames x n_filters x num_modspec)
         modspec = self.modspec_2_fdlpresponse(
             modspec)  # (batch x num_frames x n_filters x int(self.fduration * self.frate))
