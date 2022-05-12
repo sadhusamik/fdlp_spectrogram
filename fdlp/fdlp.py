@@ -1,7 +1,7 @@
 import numpy as np
 from random import randrange
 from typeguard import check_argument_types
-from scipy.fftpack import dct
+from scipy.fftpack import dct, idct
 import pickle as pkl
 from scipy.interpolate import interp1d
 import librosa
@@ -31,7 +31,7 @@ class FDLP:
         assert check_argument_types()
 
         self.use_gl = use_gl
-        self.fbank_config = [ float(x) for x in fbank_config.split(',')]
+        self.fbank_config = [float(x) for x in fbank_config.split(',')]
         self.n_filters = n_filters
         self.coeff_num = coeff_num
         coeff_range = coeff_range.split(',')
@@ -323,9 +323,9 @@ class FDLP:
 
     def spectral_substraction_preprocessing(self, frames, use_gl=False):
         from scipy.signal import hilbert
-        frames_fft = np.fft.fft(frames)
         # frames_fft_magnitude = np.exp(np.log(np.abs(frames_fft)) - np.log(self.spectral_substraction_vector))
         if use_gl:
+            frames_fft = np.fft.fft(frames)
             frames_fft_magnitude = np.log(np.abs(frames_fft)) - self.spectral_substraction_vector
             # self.logmag = frames_fft_magnitude
             # ph = -np.imag(hilbert(frames_fft_magnitude))  # estimated phase
@@ -336,7 +336,6 @@ class FDLP:
             # self.ph = ph
             # frames_fft_magnitude = np.exp(frames_fft_magnitude + 1j * ph)
             # frames_fft_magnitude = np.transpose(frames_fft_magnitude, axes=(0, 2, 1))
-
             reconstructed_speech = librosa.griffinlim(
                 np.abs(frames_fft_magnitude[:, 0:int(self.fduration * self.srate / 2) + 1, :]),
                 hop_length=int(self.fduration * self.srate / 2),
@@ -344,20 +343,29 @@ class FDLP:
                 n_iter=500, momentum=0.99, pad_mode='reflect')
 
             self.reconstructed_speech = reconstructed_speech
-
+            modified_frames = np.real(np.fft.ifft(frames_fft_magnitude))
         # frames_fft_magnitude = np.transpose(frames_fft_magnitude, axes=(0, 2, 1))
-
         else:
-            frames_fft_magnitude = np.log(np.abs(frames_fft)) - self.spectral_substraction_vector[0]  # Magnitude part
-            self.logmag = frames_fft_magnitude
-            frames_fft_phase = np.unwrap(np.angle(frames_fft)) - self.spectral_substraction_vector[1]  # Phase part
-            frames_fft_phase = (frames_fft_phase + np.pi) % (2 * np.pi) - np.pi
-            frames_fft_phase[:, :, int(self.fduration * self.srate / 2):] = -frames_fft_phase[:, :,
-                                                                             0:int(self.fduration * self.srate / 2)]
-            self.ph = frames_fft_phase
-            frames_fft_magnitude = np.exp(frames_fft_magnitude + 1j * frames_fft_phase)
+            x = 0
+            if x == 1:
+                frames_fft = np.fft.fft(frames)
+                frames_fft_magnitude = np.log(np.abs(frames_fft)) - self.spectral_substraction_vector[
+                    0]  # Magnitude part
+                self.logmag = frames_fft_magnitude
+                frames_fft_phase = np.unwrap(np.angle(frames_fft)) - self.spectral_substraction_vector[1]  # Phase part
+                frames_fft_phase = (frames_fft_phase + np.pi) % (2 * np.pi) - np.pi
+                frames_fft_phase[:, :, int(self.fduration * self.srate / 2):] = -frames_fft_phase[:, :,
+                                                                                 0:int(self.fduration * self.srate / 2)]
+                self.ph = frames_fft_phase
+                frames_fft_magnitude = np.exp(frames_fft_magnitude + 1j * frames_fft_phase)
+                modified_frames = np.real(np.fft.ifft(frames_fft_magnitude))
+            else:
+                frames_fft = dct(frames)+1j*0
+                frames_fft = np.real(np.exp(np.log(frames_fft) + np.log(self.spectral_substraction_vector['clean']) - np.log(
+                    self.spectral_substraction_vector['noisy'])))
+                modified_frames = idct(frames_fft) / (2 * frames_fft.shape[2])
 
-        return np.real(np.fft.ifft(frames_fft_magnitude))
+        return modified_frames
 
     def acc_log_spectrum_fft(self, input):
         frames = self.get_frames(input, no_window=self.no_window)
@@ -371,7 +379,7 @@ class FDLP:
 
     def acc_log_spectrum(self, input):
         frames = self.get_frames(input, no_window=self.no_window)
-        frames = dct(frames[0])
+        frames = np.log(dct(frames[0])+1j*0)
         frames_mag = frames
         frames_mag = np.sum(frames_mag, axis=0)
         frames_ang = np.zeros(frames_mag.shape)
