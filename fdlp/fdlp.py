@@ -1,7 +1,7 @@
 import numpy as np
 from random import randrange
 from typeguard import check_argument_types
-from scipy.fftpack import dct, idct
+from scipy.fftpack import dct, idct, dst, idst
 import pickle as pkl
 from scipy.interpolate import interp1d
 import librosa
@@ -360,9 +360,10 @@ class FDLP:
                 frames_fft_magnitude = np.exp(frames_fft_magnitude + 1j * frames_fft_phase)
                 modified_frames = np.real(np.fft.ifft(frames_fft_magnitude))
             else:
-                frames_fft = dct(frames)+1j*0
-                frames_fft = np.real(np.exp(np.log(frames_fft) + np.log(self.spectral_substraction_vector['clean']) - np.log(
-                    self.spectral_substraction_vector['noisy'])))
+                frames_fft = dct(frames) + 1j * 0
+                frames_fft = np.real(np.exp(
+                    np.log(frames_fft) + self.spectral_substraction_vector['clean'] - self.spectral_substraction_vector[
+                        'noisy']))
                 modified_frames = idct(frames_fft) / (2 * frames_fft.shape[2])
 
         return modified_frames
@@ -379,11 +380,14 @@ class FDLP:
 
     def acc_log_spectrum(self, input):
         frames = self.get_frames(input, no_window=self.no_window)
-        frames = np.log(dct(frames[0])+1j*0)
-        frames_mag = frames
-        frames_mag = np.sum(frames_mag, axis=0)
-        frames_ang = np.zeros(frames_mag.shape)
-        return frames.shape[0], frames_mag, frames_ang
+
+        frames_dct = dct(frames[0], type=2)
+        frames_dst = dst(frames[0], type=2)
+
+        frames_dct = np.sum(frames_dct, axis=0)
+        frames_dst = np.sum(frames_dst, axis=0)
+
+        return frames.shape[0], frames_dct, frames_dst
 
     def compute_spectrogram(self, input, ilens=None):
         """Main function that computes FDLp spectrogram.
