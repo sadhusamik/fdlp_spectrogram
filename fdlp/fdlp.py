@@ -387,7 +387,7 @@ class FDLP:
         frames_dct = np.sum(frames_dct, axis=0)
         frames_dst = np.sum(frames_dst, axis=0)
 
-        return frames.shape[0], frames_dct, frames_dst
+        return frames.shape[1], frames_dct, frames_dst
 
     def compute_spectrogram(self, input, ilens=None):
         """Main function that computes FDLp spectrogram.
