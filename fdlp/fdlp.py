@@ -244,7 +244,7 @@ class FDLP:
             lpc_cep[:, :, :, n] = acc + lpc_coeff[:, :, :, n]
         return lpc_cep
 
-    def get_frames(self, signal, no_window=False):
+    def get_frames(self, signal, no_window=False, reflect=True):
         """Divide speech signal into frames.
 
                 Args:
@@ -265,7 +265,9 @@ class FDLP:
             sp_f = int((flength_samples - 1) / 2)
             extend = int((flength_samples - 1) / 2)
 
-        signal = np.pad(signal, ((0, 0), (extend, extend)), 'reflect')
+        if reflect:
+            signal = np.pad(signal, ((0, 0), (extend, extend)), 'reflect')
+
         signal_length = signal.shape[1]
         win = np.hamming(flength_samples)
         idx = sp_b
@@ -378,11 +380,13 @@ class FDLP:
         # frames_ang = (frames_ang + np.pi) % (2 * np.pi) - np.pi
         return frames.shape[0], frames_mag, frames_ang
 
-    def acc_log_spectrum(self, input):
-        frames = self.get_frames(input, no_window=self.no_window)
-
-        frames_dct = dct(frames[0], type=2)
-        frames_dst = dst(frames[0], type=2)
+    def acc_log_spectrum(self, input, append_zero_factor=100):
+        frames = self.get_frames(input, no_window=self.no_window, reflect=False)
+        x = frames[0]
+        y = np.zeros((frames[0].shape[0], append_zero_factor * frames[0].shape[1]))
+        x = np.concatenate([x, y], axis=1)
+        frames_dct = dct(x, type=2)
+        frames_dst = dst(x, type=2)
 
         frames_dct = np.sum(frames_dct, axis=0)
         frames_dst = np.sum(frames_dst, axis=0)
