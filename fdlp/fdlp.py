@@ -1,3 +1,5 @@
+import sys
+
 import numpy as np
 from random import randrange
 from typeguard import check_argument_types
@@ -282,6 +284,7 @@ class FDLP:
         if len(frames) == 0:
             # Just make frame
             logging.info('Sentence too short, only making on frame with given configuration..')
+            sys.stdout.flush()
             frames.append(np.concatenate([signal[:, np.newaxis, idx - sp_b:idx + sp_f + 1],
                                           np.zeros((signal.shape[0], 1, flength_samples - signal.shape[1]))], axis=2))
 
