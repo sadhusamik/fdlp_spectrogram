@@ -5,7 +5,7 @@ from scipy.fftpack import dct, idct, dst, idst
 import pickle as pkl
 from scipy.interpolate import interp1d
 import librosa
-
+import logging
 
 class FDLP:
     def __init__(self,
@@ -279,9 +279,13 @@ class FDLP:
                 frames.append(signal[:, np.newaxis, idx - sp_b:idx + sp_f + 1] * win)
             idx += frate_samples
 
-        frames = np.concatenate(frames, axis=1)
+        if len(frames) == 0:
+            # Just make frame
+            logging.info('Sentence too short, only making on frame with given configuration..')
+            frames.append(np.concatenate([signal[:, np.newaxis, idx - sp_b:idx + sp_f + 1],
+                                          np.zeros((signal.shape[0], 1, flength_samples - signal.shape[1]))], axis=2))
 
-        return frames
+        return np.concatenate(frames, axis=1)
 
     def OLA(self, modspec, t_samples, dtype):
         """
@@ -382,16 +386,19 @@ class FDLP:
 
     def acc_log_spectrum(self, input, append_zero_factor=100):
         frames = self.get_frames(input, no_window=self.no_window, reflect=False)
-        x = frames[0]
-        y = np.zeros((frames[0].shape[0], append_zero_factor * frames[0].shape[1]))
-        x = np.concatenate([x, y], axis=1)
-        frames_dct = dct(x, type=2)
-        frames_dst = dst(x, type=2)
+        if frames is not None:
+            x = frames[0]
+            y = np.zeros((frames[0].shape[0], append_zero_factor * frames[0].shape[1]))
+            x = np.concatenate([x, y], axis=1)
+            frames_dct = dct(x, type=2)
+            frames_dst = dst(x, type=2)
 
-        frames_dct = np.sum(frames_dct, axis=0)
-        frames_dst = np.sum(frames_dst, axis=0)
+            frames_dct = np.sum(frames_dct, axis=0)
+            frames_dst = np.sum(frames_dst, axis=0)
 
-        return frames.shape[1], frames_dct, frames_dst
+            return frames.shape[1], frames_dct, frames_dst
+        else:
+            return None, None, None
 
     def compute_spectrogram(self, input, ilens=None):
         """Main function that computes FDLp spectrogram.
