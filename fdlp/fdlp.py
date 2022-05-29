@@ -395,11 +395,11 @@ class FDLP:
         x = frames[0]
         y = np.zeros((frames[0].shape[0], append_len - frames[0].shape[1]))
         x = np.concatenate([x, y], axis=1)
+
+        x = x[:, :append_len]
+
         frames_dct = dct(x, type=2)
         frames_dst = dst(x, type=2)
-
-        frames_dct = frames_dct[:, :append_len]
-        frames_dst = frames_dst[:, :append_len]
 
         frames_dct = np.sum(frames_dct, axis=0)
         frames_dst = np.sum(frames_dst, axis=0)
