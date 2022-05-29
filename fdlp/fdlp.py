@@ -390,21 +390,22 @@ class FDLP:
 
     def acc_log_spectrum(self, input, append_len=500000):
 
-        frames = self.get_frames(input, no_window=self.no_window, reflect=False)
+        # frames = input  # batch (1) x length self.get_frames(input, no_window=self.no_window, reflect=False)
+        input = np.concatenate([input, np.zeros(append_len - input.shape[0])])
 
-        x = frames[0]
-        y = np.zeros((frames[0].shape[0], append_len - frames[0].shape[1]))
-        x = np.concatenate([x, y], axis=1)
+        #x = frames[0]
+        #y = np.zeros((frames[0].shape[0], append_len - frames[0].shape[1]))
+        #x = np.concatenate([x, y], axis=1)
 
-        x = x[:, :append_len]
+        input = input[0:append_len]
 
-        frames_dct = dct(x, type=2)
-        frames_dst = dst(x, type=2)
+        frames_dct = dct(input, type=2)
+        frames_dst = dst(input, type=2)
 
-        frames_dct = np.sum(frames_dct, axis=0)
-        frames_dst = np.sum(frames_dst, axis=0)
+        #frames_dct = np.sum(frames_dct, axis=0)
+        #frames_dst = np.sum(frames_dst, axis=0)
 
-        return frames.shape[1], frames_dct, frames_dst
+        return 1, frames_dct, frames_dst
 
     def compute_spectrogram(self, input, ilens=None):
         """Main function that computes FDLp spectrogram.
