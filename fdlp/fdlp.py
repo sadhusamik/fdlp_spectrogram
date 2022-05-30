@@ -30,6 +30,7 @@ class FDLP:
                  normalize_uttwise_variance: bool = False,
                  spectral_substraction_signal: np.array = None,
                  spectral_substraction_vector: np.array = None,
+                 feature_batch: int = None,
                  srate: int = 16000):
         assert check_argument_types()
 
@@ -106,6 +107,7 @@ class FDLP:
         self.reconstructed_speech_chunk = None
         self.logmag = None
         self.ph = None
+        self.feature_batch = feature_batch
 
     def initialize_filterbank(self, nfilters, nfft, srate, om_w=1.0, alp=1.0, fixed=1, bet=2.5, warp_fact=1,
                               make_symmetric=False):
@@ -259,6 +261,10 @@ class FDLP:
         flength_samples = int(self.srate * self.fduration)
         frate_samples = int(self.srate / self.lfr)
 
+        if self.feature_batch is not None:
+            # Reshape to have longer utterances, helps in feature extraction
+            signal = np.reshape(signal, (self.feature_batch, -1))
+
         if flength_samples % 2 == 0:
             sp_b = int(flength_samples / 2) - 1
             sp_f = int(flength_samples / 2)
@@ -390,20 +396,11 @@ class FDLP:
 
     def acc_log_spectrum(self, input, append_len=500000):
 
-        # frames = input  # batch (1) x length self.get_frames(input, no_window=self.no_window, reflect=False)
         input = np.concatenate([input, np.zeros(append_len - input.shape[0])])
-
-        #x = frames[0]
-        #y = np.zeros((frames[0].shape[0], append_len - frames[0].shape[1]))
-        #x = np.concatenate([x, y], axis=1)
-
         input = input[0:append_len]
 
         frames_dct = dct(input, type=2)
         frames_dst = dst(input, type=2)
-
-        #frames_dct = np.sum(frames_dct, axis=0)
-        #frames_dst = np.sum(frames_dst, axis=0)
 
         return 1, frames_dct, frames_dst
 
@@ -477,8 +474,25 @@ class FDLP:
                                    (0, 1, 3, 2))  # (batch x num_frames x int(self.fduration * self.frate) x n_filters)
 
             # OVERLAP AND ADD
-            modspec = self.OLA(modspec=modspec, t_samples=t_samples, dtype=input.dtype)
+            if self.feature_batch is not None:
+                modspec = self.OLA(modspec=modspec, t_samples=int(t_samples * num_batch / self.feature_batch),
+                                   dtype=input.dtype)
+            else:
+                modspec = self.OLA(modspec=modspec, t_samples=t_samples, dtype=input.dtype)
 
+        if self.feature_batch is not None:
+            # Might not be equally divisible, deal with that
+            modspec_size = modspec.shape[0] * modspec.shape[1] * modspec.shape[2]
+            div_req = num_batch * self.n_filters
+            div_reminder = modspec_size % div_req
+            if div_reminder != 0:
+                modspec = modspec.flatten()
+                if div_reminder < int(div_req / 2):
+                    modspec = modspec[:-div_reminder]
+                else:
+                    modspec = np.concatenate([modspec, np.zeros(div_reminder)])
+
+            modspec = np.reshape(modspec, (num_batch, -1, self.n_filters))
         if ilens is not None:
             olens = np.round(ilens * self.frate / self.srate)
         else:
