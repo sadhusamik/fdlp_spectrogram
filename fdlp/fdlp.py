@@ -384,7 +384,7 @@ class FDLP:
 
         return modified_frames
 
-    def acc_log_spectrum_fft(self, input):
+    def acc_log_spectrum_fft_old(self, input):
         frames = self.get_frames(input, no_window=self.no_window)
         frames = np.fft.fft(frames[0])
         frames_mag = np.abs(frames)
@@ -403,6 +403,14 @@ class FDLP:
         frames_dst = dst(input, type=2)
 
         return 1, frames_dct, frames_dst
+
+    def acc_log_spectrum_fft(self, input, append_len=500000):
+
+        input = np.concatenate([input, np.zeros(append_len - input.shape[0])])
+        input = input[0:append_len]
+        frames_fft = np.log(np.fft.fft(input))
+
+        return 1, np.real(frames_fft), np.upwrap(np.imag(frames_fft))
 
     def compute_spectrogram(self, input, ilens=None):
         """Main function that computes FDLp spectrogram.
