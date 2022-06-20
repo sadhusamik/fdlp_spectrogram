@@ -410,7 +410,7 @@ class FDLP:
         input = input[0:append_len]
         frames_fft = np.log(np.fft.fft(input))
 
-        return 1, np.real(frames_fft), np.upwrap(np.imag(frames_fft))
+        return 1, np.real(frames_fft), np.unwrap(np.imag(frames_fft))
 
     def compute_spectrogram(self, input, ilens=None):
         """Main function that computes FDLp spectrogram.
