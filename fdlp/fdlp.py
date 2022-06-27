@@ -337,52 +337,21 @@ class FDLP:
 
         return feats
 
-    def spectral_substraction_preprocessing(self, frames, use_gl=False):
-        from scipy.signal import hilbert
-        # frames_fft_magnitude = np.exp(np.log(np.abs(frames_fft)) - np.log(self.spectral_substraction_vector))
-        if use_gl:
-            frames_fft = np.fft.fft(frames)
-            frames_fft_magnitude = np.log(np.abs(frames_fft)) - self.spectral_substraction_vector
-            # self.logmag = frames_fft_magnitude
-            # ph = -np.imag(hilbert(frames_fft_magnitude))  # estimated phase
-            # ph[:, :, int(self.fduration * self.srate / 2):] = -np.flip(ph[:, :, 0:int(self.fduration * self.srate / 2)],
-            # axis = -1)
-            # ph = np.angle(frames_fft)
-            # ph = (ph + np.pi) % (2 * np.pi) - np.pi
-            # self.ph = ph
-            # frames_fft_magnitude = np.exp(frames_fft_magnitude + 1j * ph)
-            # frames_fft_magnitude = np.transpose(frames_fft_magnitude, axes=(0, 2, 1))
-            reconstructed_speech = librosa.griffinlim(
-                np.abs(frames_fft_magnitude[:, 0:int(self.fduration * self.srate / 2) + 1, :]),
-                hop_length=int(self.fduration * self.srate / 2),
-                win_length=int(self.fduration * self.srate), window=np.hamming(int(self.fduration * self.srate)),
-                n_iter=500, momentum=0.99, pad_mode='reflect')
-
-            self.reconstructed_speech = reconstructed_speech
-            modified_frames = np.real(np.fft.ifft(frames_fft_magnitude))
-        # frames_fft_magnitude = np.transpose(frames_fft_magnitude, axes=(0, 2, 1))
+    def spectral_substraction_preprocessing(self, frames):
+        ori_len = frames.shape[-1]
+        if self.spectral_substraction_vector.shape[0] > frames.shape[-1]:
+            frames = np.concatenate([frames, np.zeros(
+                (frames.shape[0], frames.shape[1], self.spectral_substraction_vector.shape[0] - frames.shape[-1]))],
+                                    axis=-1)
         else:
-            x = 0
-            if x == 1:
-                frames_fft = np.fft.fft(frames)
-                frames_fft_magnitude = np.log(np.abs(frames_fft)) - self.spectral_substraction_vector[
-                    0]  # Magnitude part
-                self.logmag = frames_fft_magnitude
-                frames_fft_phase = np.unwrap(np.angle(frames_fft)) - self.spectral_substraction_vector[1]  # Phase part
-                frames_fft_phase = (frames_fft_phase + np.pi) % (2 * np.pi) - np.pi
-                frames_fft_phase[:, :, int(self.fduration * self.srate / 2):] = -frames_fft_phase[:, :,
-                                                                                 0:int(self.fduration * self.srate / 2)]
-                self.ph = frames_fft_phase
-                frames_fft_magnitude = np.exp(frames_fft_magnitude + 1j * frames_fft_phase)
-                modified_frames = np.real(np.fft.ifft(frames_fft_magnitude))
-            else:
-                frames_fft = dct(frames) + 1j * 0
-                frames_fft = np.real(np.exp(
-                    np.log(frames_fft) + self.spectral_substraction_vector['clean'] - self.spectral_substraction_vector[
-                        'noisy']))
-                modified_frames = idct(frames_fft) / (2 * frames_fft.shape[2])
+            frames = frames[:, :0:self.spectral_substraction_vector.shape[0]]
 
-        return modified_frames
+        frames_fft = np.log(np.fft.fft(frames))
+        frames_fft_ph = np.unwrap(np.imag(frames_fft))
+        frames_fft = np.real(frames_fft) + 1j * frames_fft_ph
+        frames_fft = np.exp(frames_fft - self.spectral_substraction_vector)
+
+        return frames_fft[:, :, :ori_len]
 
     def acc_log_spectrum_fft_old(self, input):
         frames = self.get_frames(input, no_window=self.no_window)
@@ -432,7 +401,7 @@ class FDLP:
         num_frames = frames.shape[1]
 
         if self.spectral_substraction_vector is not None:
-            frames = self.spectral_substraction_preprocessing(frames, use_gl=self.use_gl)
+            frames = self.spectral_substraction_preprocessing(frames)
             self.reconstructed_speech_chunk = frames
         # Compute DCT/FFT (olens remains the same)
         if self.complex_mvectors:
