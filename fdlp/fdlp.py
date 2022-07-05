@@ -26,7 +26,7 @@ class FDLP:
                  return_phase: bool = False,
                  no_window: bool = False,
                  use_gl: bool = False,
-                 fbank_config: str = '1,1,2,5',
+                 fbank_config: str = '1,1,2.5',
                  normalize_uttwise_variance: bool = False,
                  spectral_substraction_signal: np.array = None,
                  spectral_substraction_vector: np.array = None,
@@ -349,7 +349,7 @@ class FDLP:
         frames_fft = np.log(np.fft.fft(frames))
         frames_fft_ph = np.unwrap(np.imag(frames_fft))
         frames_fft = np.real(frames_fft) + 1j * frames_fft_ph
-        frames_fft = np.exp(frames_fft - self.spectral_substraction_vector)
+        frames_fft = np.real(np.fft.ifft(np.exp(frames_fft - self.spectral_substraction_vector)))
 
         return frames_fft[:, :, :ori_len]
 
