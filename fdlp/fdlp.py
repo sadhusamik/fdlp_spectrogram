@@ -276,6 +276,8 @@ class FDLP:
 
         if reflect:
             signal = np.pad(signal, ((0, 0), (extend, extend)), 'reflect')
+        else:
+            signal = np.pad(signal, ((0, 0), (extend, extend)), 'constant')
 
         signal_length = signal.shape[1]
         win = np.hamming(flength_samples)
@@ -380,6 +382,15 @@ class FDLP:
         frames_fft = np.log(np.fft.fft(input))
 
         return 1, np.real(frames_fft), np.unwrap(np.imag(frames_fft), discont=discont)
+
+    def acc_log_spectrum_fft_frames(self, input, append_len=500000, discont=np.pi):
+
+        num_frames = input.shape[0]
+        input = np.concatenate([input, np.zeros(append_len - input.shape[1])], axis=-1)
+        input = input[:,0:append_len]
+        frames_fft = np.log(np.fft.fft(input))
+
+        return num_frames, np.real(frames_fft), np.unwrap(np.imag(frames_fft), discont=discont)
 
     def compute_spectrogram(self, input, ilens=None):
         """Main function that computes FDLp spectrogram.
