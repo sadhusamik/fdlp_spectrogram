@@ -388,8 +388,10 @@ class FDLP:
         input = input[None, :]
         input = self.get_frames(input, no_window=True, reflect=False)
         input = input[0]
-
+        print(input.shape)
         num_frames = input.shape[0]
+        print(input.shape)
+        sys.stdout.flush()
         input = np.concatenate([input, np.zeros((num_frames, append_len - input.shape[1]))], axis=-1)
         input = input[:, 0:append_len]
         frames_fft = np.log(np.fft.fft(input, axis=-1))
