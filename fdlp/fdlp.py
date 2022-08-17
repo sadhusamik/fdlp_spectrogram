@@ -386,7 +386,7 @@ class FDLP:
     def acc_log_spectrum_fft_frames(self, input, append_len=500000, discont=np.pi):
 
         input = input[None, :]
-        input = self.get_frames(input, no_window=True, reflect=False)
+        input = self.get_frames(input, no_window=False, reflect=False)
         input = input[0]
         num_frames = input.shape[0]
         input = np.concatenate([input, np.zeros((num_frames, append_len - input.shape[1]))], axis=-1)
