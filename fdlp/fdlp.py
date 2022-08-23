@@ -276,8 +276,8 @@ class FDLP:
 
         if reflect:
             signal = np.pad(signal, ((0, 0), (extend, extend)), 'reflect')
-        #else:
-        #    signal = np.pad(signal, ((0, 0), (extend, extend)), 'constant')
+        else:
+            signal = np.pad(signal, ((0, 0), (extend, extend)), 'constant')
 
         signal_length = signal.shape[1]
         win = np.hamming(flength_samples)
