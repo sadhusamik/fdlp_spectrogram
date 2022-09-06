@@ -385,6 +385,8 @@ class FDLP:
 
     def acc_log_spectrum_fft_frames(self, input, append_len=500000, discont=np.pi):
 
+        angg = 8000 / append_len * 2 * np.pi * self.overlap_fraction * self.fduration
+
         input = input[None, :]
         input = self.get_frames(input, no_window=True, reflect=False)
         input = input[0]
@@ -395,7 +397,7 @@ class FDLP:
         phase_all = np.unwrap(np.imag(frames_fft), discont=discont, axis=-1)
         cc = 0
         for i in range(phase_all.shape[0]):
-            phase_all[i] = phase_all[i] * (1 + cc * 0.025)
+            phase_all[i] = phase_all[i] * (1 + cc * angg)
             cc += 1
         return num_frames, np.sum(np.real(frames_fft), axis=0), np.sum(phase_all, axis=0)
 
