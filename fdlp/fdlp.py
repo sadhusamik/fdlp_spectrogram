@@ -22,7 +22,8 @@ class FDLP:
                  lifter_file: str = None,
                  lfr: float = 33,  # only used when return_mvector = True
                  return_mvector: bool = False,
-                 complex_mvectors: bool = False,
+                 complex_mvectors: bool = True,
+                 interpolate: bool = True,
                  return_phase: bool = False,
                  no_window: bool = False,
                  use_gl: bool = False,
@@ -49,6 +50,7 @@ class FDLP:
         self.overlap_fraction = 1 - overlap_fraction
         self.no_window = no_window
         self.complex_mvectors = complex_mvectors
+        self.interpolate = interpolate
         self.return_phase = return_phase
         if return_mvector:
             self.lfr = lfr
@@ -460,7 +462,7 @@ class FDLP:
                                              axis=3)  # Return magnitude and phase of modulation spectrum
                 else:
                     modspec = np.abs(modspec)  # Return only magnitude spectrum
-            if self.lfr != self.frate:
+            if self.interpolate and self.lfr != self.frate:
                 # We have to interpolate using splines features to frame rate
                 modspec = modspec.reshape(
                     (modspec.shape[0], modspec.shape[1], -1))  # batch x num_frames x n_filters * num_modspec
@@ -471,6 +473,9 @@ class FDLP:
                 x_interpolated = np.linspace(0, num_frames - 1, num_frames_interpolated)
                 modspec = f(x_interpolated)
                 modspec = modspec.transpose((0, 2, 1))  # batch  x num_frames_interpolated x n_filters * num_modspec
+            else:
+                modspec = modspec.reshape(
+                    (modspec.shape[0], modspec.shape[1], -1))  # batch x num_frames x n_filters * num_modspec
 
         else:
             # if self.complex_mvectors:
