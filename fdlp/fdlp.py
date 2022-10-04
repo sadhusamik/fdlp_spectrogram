@@ -20,7 +20,7 @@ class FDLP:
                  frate: int = 100,
                  overlap_fraction: float = 0.25,
                  lifter_file: str = None,
-                 lfr: int = 33,  # only used when return_mvector = True
+                 lfr: float = 33,  # only used when return_mvector = True
                  return_mvector: bool = False,
                  complex_mvectors: bool = False,
                  return_phase: bool = False,
