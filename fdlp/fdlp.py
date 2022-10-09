@@ -387,8 +387,8 @@ class FDLP:
 
     def acc_log_spectrum_fft_frames(self, input, append_len=500000, discont=np.pi):
 
-        angg = 8000 / append_len * 2 * np.pi * self.overlap_fraction * self.fduration
-
+        angg = 8000 * 2 * np.pi * self.overlap_fraction * self.fduration / append_len
+     
         input = input[None, :]
         input = self.get_frames(input, no_window=True, reflect=False)
         input = input[0]
