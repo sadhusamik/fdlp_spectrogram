@@ -31,6 +31,7 @@ class FDLP:
                  normalize_uttwise_variance: bool = False,
                  spectral_substraction_signal: np.array = None,
                  spectral_substraction_vector: np.array = None,
+                 online_normalize: bool = False,
                  feature_batch: int = None,
                  srate: int = 16000):
         assert check_argument_types()
@@ -52,6 +53,7 @@ class FDLP:
         self.complex_mvectors = complex_mvectors
         self.interpolate = interpolate
         self.return_phase = return_phase
+        self.online_normalize = online_normalize
         if return_mvector:
             self.lfr = lfr
         else:
@@ -388,7 +390,7 @@ class FDLP:
     def acc_log_spectrum_fft_frames(self, input, append_len=500000, discont=np.pi):
 
         angg = 8000 * 2 * np.pi * self.overlap_fraction * self.fduration / append_len
-     
+
         input = input[None, :]
         input = self.get_frames(input, no_window=True, reflect=False)
         input = input[0]
@@ -402,6 +404,74 @@ class FDLP:
             phase_all[i] = phase_all[i] * (1 + cc * angg)
             cc += 1
         return num_frames, np.sum(np.real(frames_fft), axis=0), np.sum(phase_all, axis=0)
+
+    def get_normalizing_vector(self, signal, fduration, overlap_fraction, append_len=500000, discont=np.pi,
+                               no_window=True, phase_max_cap=200):
+
+        # Divide speech into windows
+        overlap_fraction = 1 - overlap_fraction
+        lfr = 1 / (overlap_fraction * fduration)
+        flength_samples = int(self.srate * fduration)
+        frate_samples = int(self.srate / lfr)
+
+        if self.feature_batch is not None:
+            # Reshape to have longer utterances, helps in feature extraction
+            signal = np.reshape(signal, (self.feature_batch, -1))
+
+        if flength_samples % 2 == 0:
+            sp_b = int(flength_samples / 2) - 1
+            sp_f = int(flength_samples / 2)
+            extend = int(flength_samples / 2) - 1
+        else:
+            sp_b = int((flength_samples - 1) / 2)
+            sp_f = int((flength_samples - 1) / 2)
+            extend = int((flength_samples - 1) / 2)
+
+        signal = np.pad(signal, ((0, 0), (extend, extend)), 'constant')
+
+        signal_length = signal.shape[1]
+        win = np.hamming(flength_samples)
+        idx = sp_b
+        frames = []
+        while (idx + sp_f) < signal_length:
+            if no_window:
+                frames.append(signal[:, np.newaxis, idx - sp_b:idx + sp_f + 1])
+            else:
+                frames.append(signal[:, np.newaxis, idx - sp_b:idx + sp_f + 1] * win)
+            idx += frate_samples
+
+        if len(frames) == 0:
+            # Just make frame
+            logging.info('Sentence too short, only making on frame with given configuration..')
+            sys.stdout.flush()
+            frames.append(np.concatenate([signal[:, np.newaxis, idx - sp_b:idx + sp_f + 1],
+                                          np.zeros((signal.shape[0], 1, flength_samples - signal.shape[1]))], axis=2))
+
+        frames = np.concatenate(frames, axis=1)
+
+        frames = np.concatenate([frames, np.zeros((frames.shape[0], frames.shape[1], append_len - frames.shape[2]))],
+                                axis=-1)
+        frames = frames[:, :, 0:append_len]
+        frames = np.log(np.fft.fft(frames, axis=-1))
+        frames = np.reshape(frames, (frames.shape[0] * frames.shape[1], -1))
+
+        total_num_frames = frames.shape[0]
+        phase = np.unwrap(np.imag(frames), discont=discont, axis=-1)
+        logmag = np.real(frames)
+
+        phase = np.sum(phase, axis=0) / total_num_frames
+        logmag = np.sum(logmag, axis=0) / total_num_frames
+
+        ## Adjust the phase
+        phi = (phase[-1] - phase[0]) / phase.shape[0]
+        x_ph = np.arange(phase.shape[0])
+        y_ph = phase[0] + x_ph * phi
+        ph_corrected = y_ph - phase
+        ph_corrected = ph_corrected * phase_max_cap / np.max(ph_corrected)
+
+        ssv = logmag + 1j * ph_corrected
+
+        return ssv
 
     def acc_log_spectrum_fft_frames_separated(self, input, append_len=500000, discont=np.pi):
 
@@ -429,6 +499,11 @@ class FDLP:
         self.t_samples = t_samples
         self.input_dtype = input.dtype
         num_batch = input.shape[0]
+
+        if self.online_normalize:
+            # Compute ssv on the fly
+            self.spectral_substraction_vector = self.get_normalizing_vector(input, fduration=25, overlap_fraction=0.98,
+                                                                            append_len=500000)
 
         # First divide the signal into frames
         frames = self.get_frames(input, no_window=self.no_window)
