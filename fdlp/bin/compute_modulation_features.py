@@ -87,14 +87,14 @@ def compute_modulations(args):
                 if args.write_utt2num_frames:
                     all_lens[key] = feats.shape[0]
 
-        get_kaldi_ark(all_feats, args.outfile)
+    get_kaldi_ark(all_feats, args.outfile)
 
-        if args.write_utt2num_frames:
-            with open(args.outfile + '.len', 'w+') as file:
-                for key, lens in all_lens.items():
-                    p = "{:s} {:d}".format(key, lens)
-                    file.write(p)
-                    file.write("\n")
+    if args.write_utt2num_frames:
+        with open(args.outfile + '.len', 'w+') as file:
+            for key, lens in all_lens.items():
+                p = "{:s} {:d}".format(key, lens)
+                file.write(p)
+                file.write("\n")
 
 
 if __name__ == '__main__':
