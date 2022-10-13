@@ -83,7 +83,7 @@ if [ -f ${data_dir}/segments ]; then
 
   $cmd --mem 5G JOB=1:$nj \
     $log_dir/feats_${name}.JOB.log \
-    compute_modulation_features.py \
+    fdlp_spectrogram/fdlp/bin/compute_modulation_features.py \
       $scp \
       $feat_dir/modspec_${name}.JOB \
       $add_opts \
@@ -102,7 +102,7 @@ if [ -f ${data_dir}/segments ]; then
 else
     $cmd --mem 5G JOB=1:$nj \
     $log_dir/feats_${name}.JOB.log \
-    compute_modulation_features.py \
+    fdlp_spectrogram/fdlp/bin/compute_modulation_features.py \
       $log_dir/wav_${name}.JOB.scp \
       $feat_dir/modspec_${name}.JOB \
       $add_opts \
