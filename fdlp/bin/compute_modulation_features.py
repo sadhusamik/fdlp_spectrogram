@@ -41,6 +41,8 @@ def get_args():
     parser.add_argument('--derivative', action='store_true', help='Set to compute derivative of the signal')
     parser.add_argument('--normalize_uttwise_variance', type=bool, default=False,
                         help='Set to perform utterancewise variance normalization')
+    parser.add_argument('--online_normalize', type=bool, default=False,
+                        help='Online Normalize')
     parser.add_argument("--write_utt2num_frames", action="store_true", help="Set to write utt2num_frames")
 
     return parser.parse_args()
@@ -52,7 +54,8 @@ def compute_modulations(args):
                       order=args.order, normalize_uttwise_variance=args.normalize_uttwise_variance,
                       fduration=args.fduration, frate=args.frate, overlap_fraction=args.overlap_fraction,
                       lifter_file=args.lifter_file, lfr=args.lfr, return_mvector=args.return_mvector,
-                      complex_mvectors=args.complex_mvectors, no_window=args.no_window, srate=args.srate)
+                      complex_mvectors=args.complex_mvectors, no_window=args.no_window, srate=args.srate,
+                      online_normalize=args.online_normalize)
 
     if args.write_utt2num_frames:
         all_lens = {}
