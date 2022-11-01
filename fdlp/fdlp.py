@@ -13,12 +13,12 @@ import logging
 class FDLP:
     def __init__(self,
                  n_filters: int = 80,
-                 coeff_num: int = 100,
-                 coeff_range: str = '1,100',
-                 order: int = 150,
+                 coeff_num: int = 80,
+                 coeff_range: str = '1,80',
+                 order: int = 80,
                  fduration: float = 1.5,
                  frate: int = 100,
-                 overlap_fraction: float = 0.25,
+                 overlap_fraction: float = 0.5,
                  lifter_file: str = None,
                  lfr: float = 33,  # only used when return_mvector = True
                  return_mvector: bool = False,
@@ -527,8 +527,6 @@ class FDLP:
         frames = self.compute_modspec_from_lpc(gain, frames,
                                                self.coeff_num)  # batch x num_frames x n_filters x num_modspec
         modspec = frames
-        self.modspec_phase = np.angle(modspec)
-        self.modspec_magnitude = np.abs(modspec)
 
         if self.return_mvector:
             if self.complex_mvectors:
