@@ -387,7 +387,7 @@ class FDLP:
 
         return 1, np.real(frames_fft), np.unwrap(np.imag(frames_fft), discont=discont)
 
-    def acc_log_spectrum_fft_frames(self, input, append_len=500000, discont=np.pi):
+    def acc_log_spectrum_fft_frames_old(self, input, append_len=500000, discont=np.pi):
 
         angg = 8000 * 2 * np.pi * self.overlap_fraction * self.fduration / append_len
 
@@ -403,6 +403,28 @@ class FDLP:
         for i in range(phase_all.shape[0]):
             phase_all[i] = phase_all[i] * (1 + cc * angg)
             cc += 1
+        return num_frames, np.sum(np.real(frames_fft), axis=0), np.sum(phase_all, axis=0)
+
+    def acc_log_spectrum_fft_frames(self, input, append_len=500000, discont=np.pi):
+
+        angg = 8000 * 2 * np.pi * self.overlap_fraction * self.fduration / append_len
+
+        input = input[None, :]
+        input = self.get_frames(input, no_window=True, reflect=False)
+        input = input[0]
+        num_frames = input.shape[0]
+        input = np.concatenate([input, np.zeros((num_frames, append_len - input.shape[1]))], axis=-1)
+        input = input[:, 0:append_len]
+        frames_fft = np.log(np.fft.fft(input, axis=-1))
+        phase_all = np.unwrap(np.imag(frames_fft), discont=discont, axis=-1)
+
+        for idx, phase in enumerate(phase_all):
+            phi = (phase[-1] - phase[0]) / phase.shape[0]
+            x_ph = np.arange(phase.shape[0])
+            y_ph = phase[0] + x_ph * phi
+            ph_corrected = phase - y_ph
+            phase_all[idx] = ph_corrected
+
         return num_frames, np.sum(np.real(frames_fft), axis=0), np.sum(phase_all, axis=0)
 
     def get_normalizing_vector(self, signal, fduration, overlap_fraction, append_len=500000, discont=np.pi,
