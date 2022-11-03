@@ -31,6 +31,7 @@ class FDLP:
                  normalize_uttwise_variance: bool = False,
                  spectral_substraction_signal: np.array = None,
                  spectral_substraction_vector: np.array = None,
+                 clean_spectral_substraction_vector: np.array = None,
                  online_normalize: bool = False,
                  feature_batch: int = None,
                  srate: int = 16000):
@@ -107,6 +108,8 @@ class FDLP:
 
         if spectral_substraction_vector is not None:
             self.spectral_substraction_vector = spectral_substraction_vector
+
+        self.clean_spectral_substraction_vector = clean_spectral_substraction_vector
         self.reconstructed_speech = None
         self.reconstructed_speech_chunk = None
         self.logmag = None
@@ -355,7 +358,11 @@ class FDLP:
         frames_fft = np.log(np.fft.fft(frames))
         frames_fft_ph = np.unwrap(np.imag(frames_fft))
         frames_fft = np.real(frames_fft) + 1j * frames_fft_ph
-        frames_fft = np.real(np.fft.ifft(np.exp(frames_fft - self.spectral_substraction_vector)))
+        if self.clean_spectral_substraction_vector:
+            frames_fft = np.real(np.fft.ifft(
+                np.exp(frames_fft - self.spectral_substraction_vector + self.clean_spectral_substraction_vector)))
+        else:
+            frames_fft = np.real(np.fft.ifft(np.exp(frames_fft - self.spectral_substraction_vector)))
 
         return frames_fft[:, :, :ori_len]
 
@@ -406,8 +413,6 @@ class FDLP:
         return num_frames, np.sum(np.real(frames_fft), axis=0), np.sum(phase_all, axis=0)
 
     def acc_log_spectrum_fft_frames(self, input, append_len=500000, discont=np.pi):
-
-        angg = 8000 * 2 * np.pi * self.overlap_fraction * self.fduration / append_len
 
         input = input[None, :]
         input = self.get_frames(input, no_window=True, reflect=False)
@@ -481,17 +486,24 @@ class FDLP:
         phase = np.unwrap(np.imag(frames), discont=discont, axis=-1)
         logmag = np.real(frames)
 
+        for idx, phs in enumerate(phase):
+            phi = (phs[-1] - phs[0]) / phs.shape[0]
+            x_ph = np.arange(phs.shape[0])
+            y_ph = phase[0] + x_ph * phi
+            ph_corrected = phs - y_ph
+            phase[idx] = ph_corrected
+
         phase = np.sum(phase, axis=0) / total_num_frames
         logmag = np.sum(logmag, axis=0) / total_num_frames
 
         ## Adjust the phase
-        phi = (phase[-1] - phase[0]) / phase.shape[0]
-        x_ph = np.arange(phase.shape[0])
-        y_ph = phase[0] + x_ph * phi
-        ph_corrected = y_ph - phase
-        ph_corrected = ph_corrected * phase_max_cap / np.max(ph_corrected)
+        #phi = (phase[-1] - phase[0]) / phase.shape[0]
+        #x_ph = np.arange(phase.shape[0])
+        #y_ph = phase[0] + x_ph * phi
+        #ph_corrected = y_ph - phase
+        #ph_corrected = ph_corrected * phase_max_cap / np.max(ph_corrected)
 
-        ssv = logmag + 1j * ph_corrected
+        ssv = logmag + 1j * phase
 
         return ssv
 
