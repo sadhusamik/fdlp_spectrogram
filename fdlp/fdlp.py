@@ -475,9 +475,9 @@ class FDLP:
                                           np.zeros((signal.shape[0], 1, flength_samples - signal.shape[1]))], axis=2))
 
         frames = np.concatenate(frames, axis=1)
-
         frames = np.concatenate([frames, np.zeros((frames.shape[0], frames.shape[1], append_len - frames.shape[2]))],
                                 axis=-1)
+
         frames = frames[:, :, 0:append_len]
         frames = np.log(np.fft.fft(frames, axis=-1))
         frames = np.reshape(frames, (frames.shape[0] * frames.shape[1], -1))
@@ -487,6 +487,7 @@ class FDLP:
         logmag = np.real(frames)
 
         for idx, phs in enumerate(phase):
+            print(phs)
             phi = (phs[-1] - phs[0]) / phs.shape[0]
             x_ph = np.arange(phs.shape[0])
             y_ph = phase[0] + x_ph * phi
