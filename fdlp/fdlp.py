@@ -487,10 +487,10 @@ class FDLP:
         logmag = np.real(frames)
 
         for idx, phs in enumerate(phase):
-            print(phs)
+            #print(phs)
             phi = (phs[-1] - phs[0]) / phs.shape[0]
             x_ph = np.arange(phs.shape[0])
-            y_ph = phase[0] + x_ph * phi
+            y_ph = phs[0] + x_ph * phi
             ph_corrected = phs - y_ph
             phase[idx] = ph_corrected
 
