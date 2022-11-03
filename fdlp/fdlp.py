@@ -432,7 +432,7 @@ class FDLP:
 
         return num_frames, np.sum(np.real(frames_fft), axis=0), np.sum(phase_all, axis=0)
 
-    def get_normalizing_vector(self, signal, fduration, overlap_fraction, append_len=500000, discont=np.pi,
+    def get_normalizing_vector(self, signal, fduration, overlap_fraction, append_len=1000000, discont=np.pi,
                                no_window=True, phase_max_cap=200):
 
         # Divide speech into windows
