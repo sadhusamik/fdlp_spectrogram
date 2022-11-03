@@ -358,7 +358,7 @@ class FDLP:
         frames_fft = np.log(np.fft.fft(frames))
         frames_fft_ph = np.unwrap(np.imag(frames_fft))
         frames_fft = np.real(frames_fft) + 1j * frames_fft_ph
-        if self.clean_spectral_substraction_vector:
+        if self.clean_spectral_substraction_vector is not None:
             frames_fft = np.real(np.fft.ifft(
                 np.exp(frames_fft - self.spectral_substraction_vector + self.clean_spectral_substraction_vector)))
         else:
