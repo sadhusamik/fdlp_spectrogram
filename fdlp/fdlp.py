@@ -537,7 +537,7 @@ class FDLP:
         if self.online_normalize:
             # Compute ssv on the fly
             self.spectral_substraction_vector = self.get_normalizing_vector(input, fduration=25, overlap_fraction=0.98,
-                                                                            append_len=500000)
+                                                                            append_len=1000000)
 
         # First divide the signal into frames
         frames = self.get_frames(input, no_window=self.no_window)
