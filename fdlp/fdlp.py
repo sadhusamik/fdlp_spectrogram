@@ -359,10 +359,17 @@ class FDLP:
         frames_fft_ph = np.unwrap(np.imag(frames_fft))
         frames_fft = np.real(frames_fft) + 1j * frames_fft_ph
         if self.clean_spectral_substraction_vector is not None:
-            frames_fft = np.real(np.fft.ifft(
-                np.exp(frames_fft - self.spectral_substraction_vector + self.clean_spectral_substraction_vector)))
+            temp = self.spectral_substraction_vector - self.clean_spectral_substraction_vector
+            temp_imag = np.imag(temp)
+            temp_imag = np.pi * temp_imag / np.max(temp_imag)
+            temp = np.real(temp) + temp_imag
+            frames_fft = np.real(np.fft.ifft(np.exp(frames_fft - temp)))
         else:
-            frames_fft = np.real(np.fft.ifft(np.exp(frames_fft - self.spectral_substraction_vector)))
+            temp = self.spectral_substraction_vector
+            temp_imag = np.imag(temp)
+            temp_imag = np.pi * temp_imag / np.max(temp_imag)
+            temp = np.real(temp) + temp_imag
+            frames_fft = np.real(np.fft.ifft(np.exp(frames_fft - temp)))
 
         return frames_fft[:, :, :ori_len]
 
@@ -487,7 +494,7 @@ class FDLP:
         logmag = np.real(frames)
 
         for idx, phs in enumerate(phase):
-            #print(phs)
+            # print(phs)
             phi = (phs[-1] - phs[0]) / phs.shape[0]
             x_ph = np.arange(phs.shape[0])
             y_ph = phs[0] + x_ph * phi
@@ -498,11 +505,11 @@ class FDLP:
         logmag = np.sum(logmag, axis=0) / total_num_frames
 
         ## Adjust the phase
-        #phi = (phase[-1] - phase[0]) / phase.shape[0]
-        #x_ph = np.arange(phase.shape[0])
-        #y_ph = phase[0] + x_ph * phi
-        #ph_corrected = y_ph - phase
-        #ph_corrected = ph_corrected * phase_max_cap / np.max(ph_corrected)
+        # phi = (phase[-1] - phase[0]) / phase.shape[0]
+        # x_ph = np.arange(phase.shape[0])
+        # y_ph = phase[0] + x_ph * phi
+        # ph_corrected = y_ph - phase
+        # ph_corrected = ph_corrected * phase_max_cap / np.max(ph_corrected)
 
         ssv = logmag + 1j * phase
 
