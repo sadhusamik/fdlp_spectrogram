@@ -363,12 +363,15 @@ class FDLP:
             temp_imag = np.imag(temp)
             temp_imag = np.pi * temp_imag / np.max(temp_imag)
             temp = np.real(temp) + temp_imag
+            temp[0] = temp[-1]
             frames_fft = np.real(np.fft.ifft(np.exp(frames_fft - temp)))
+
         else:
             temp = self.spectral_substraction_vector
             temp_imag = np.imag(temp)
             temp_imag = np.pi * temp_imag / np.max(temp_imag)
             temp = np.real(temp) + temp_imag
+            temp[0] = temp[-1]
             frames_fft = np.real(np.fft.ifft(np.exp(frames_fft - temp)))
 
         return frames_fft[:, :, :ori_len]
