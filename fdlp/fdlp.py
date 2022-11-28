@@ -360,18 +360,18 @@ class FDLP:
         #frames_fft = np.real(frames_fft) + 1j * frames_fft_ph
         if self.clean_spectral_substraction_vector is not None:
             temp = self.spectral_substraction_vector - self.clean_spectral_substraction_vector
-            temp_imag = np.imag(temp)
-            temp_imag = np.pi * temp_imag / np.max(temp_imag)
-            temp = np.real(temp) + temp_imag
-            temp[0] = temp[-1]
+            #temp_imag = np.imag(temp)
+            #temp_imag = np.pi * temp_imag / np.max(temp_imag)
+            #temp = np.real(temp) + temp_imag
+            #temp[0] = temp[-1]
             frames_fft = np.real(np.fft.ifft(np.exp(frames_fft - temp)))
 
         else:
             temp = self.spectral_substraction_vector
-            temp_imag = np.imag(temp)
-            temp_imag = np.pi * temp_imag / np.max(temp_imag)
-            temp = np.real(temp) + temp_imag
-            temp[0] = temp[-1]
+            #temp_imag = np.imag(temp)
+            #temp_imag = np.pi * temp_imag / np.max(temp_imag)
+            #temp = np.real(temp) + temp_imag
+            #temp[0] = temp[-1]
             frames_fft = np.real(np.fft.ifft(np.exp(frames_fft - temp)))
 
         return frames_fft[:, :, :ori_len]
@@ -433,12 +433,12 @@ class FDLP:
         frames_fft = np.log(np.fft.fft(input, axis=-1))
         phase_all = np.unwrap(np.imag(frames_fft), discont=discont, axis=-1)
 
-        for idx, phase in enumerate(phase_all):
-            phi = (phase[-1] - phase[0]) / phase.shape[0]
-            x_ph = np.arange(phase.shape[0])
-            y_ph = phase[0] + x_ph * phi
-            ph_corrected = phase - y_ph
-            phase_all[idx] = ph_corrected
+        #for idx, phase in enumerate(phase_all):
+        #    phi = (phase[-1] - phase[0]) / phase.shape[0]
+        #    x_ph = np.arange(phase.shape[0])
+        #    y_ph = phase[0] + x_ph * phi
+        #    ph_corrected = phase - y_ph
+        #    phase_all[idx] = ph_corrected
 
         return num_frames, np.sum(np.real(frames_fft), axis=0), np.sum(phase_all, axis=0)
 
@@ -496,16 +496,18 @@ class FDLP:
         phase = np.unwrap(np.imag(frames), discont=discont, axis=-1)
         logmag = np.real(frames)
 
-        for idx, phs in enumerate(phase):
-            # print(phs)
-            phi = (phs[-1] - phs[0]) / phs.shape[0]
-            x_ph = np.arange(phs.shape[0])
-            y_ph = phs[0] + x_ph * phi
-            ph_corrected = phs - y_ph
-            phase[idx] = ph_corrected
+        #for idx, phs in enumerate(phase):
+        #    # print(phs)
+        #    phi = (phs[-1] - phs[0]) / phs.shape[0]
+        #    x_ph = np.arange(phs.shape[0])
+        #    y_ph = phs[0] + x_ph * phi
+        #    ph_corrected = phs - y_ph
+        #    phase[idx] = ph_corrected
 
         phase = np.sum(phase, axis=0) / total_num_frames
         logmag = np.sum(logmag, axis=0) / total_num_frames
+
+        #phase = (phase + np.pi) % (2 * np.pi) - np.pi
 
         ## Adjust the phase
         # phi = (phase[-1] - phase[0]) / phase.shape[0]
